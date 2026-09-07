@@ -89,16 +89,6 @@ export default function OrganizerLayout({ children }: { children: React.ReactNod
               <span className="pill pill-simulated">SIMULATED</span>
               <span className={styles.headerTime}>19:30–22:30</span>
             </div>
-            <button 
-              onClick={() => {
-                const modal = document.getElementById('qr-modal');
-                if (modal) modal.style.display = 'flex';
-              }}
-              className="btn btn-yellow btn-sm"
-              style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold' }}
-            >
-              <span>📱</span> Install App (QR)
-            </button>
             <Link href="/attendee" className="btn btn-outline btn-sm">
               Attendee View →
             </Link>
@@ -106,91 +96,6 @@ export default function OrganizerLayout({ children }: { children: React.ReactNod
         </header>
         <div className={styles.content}>
           {children}
-        </div>
-
-        {/* POPUP QR SCANNER MODAL */}
-        <div 
-          id="qr-modal" 
-          style={{
-            display: 'none',
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(0,0,0,0.65)',
-            backdropFilter: 'blur(4px)',
-            zIndex: 9999,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              e.currentTarget.style.display = 'none';
-            }
-          }}
-        >
-          <div style={{
-            background: '#F6F5F1',
-            borderRadius: '16px',
-            padding: '28px',
-            maxWidth: '380px',
-            width: '90%',
-            boxShadow: '0 20px 40px rgba(0,0,0,0.2)',
-            border: '2px solid #F5C400',
-            textAlign: 'center',
-            position: 'relative',
-          }}>
-            <button 
-              onClick={() => {
-                const modal = document.getElementById('qr-modal');
-                if (modal) modal.style.display = 'none';
-              }}
-              style={{
-                position: 'absolute',
-                top: '12px',
-                right: '12px',
-                background: '#E7E5DE',
-                border: 'none',
-                borderRadius: '50%',
-                width: '28px',
-                height: '28px',
-                cursor: 'pointer',
-                fontWeight: 'bold',
-                fontSize: '14px',
-              }}
-            >
-              ✕
-            </button>
-            <span className="pill pill-live" style={{ fontSize: '10px' }}>● ANDROID RELEASE READY</span>
-            <h2 style={{ fontSize: '18px', fontWeight: '800', marginTop: '10px', marginBottom: '6px' }}>
-              Scan to Install Junction
-            </h2>
-            <p style={{ fontSize: '12px', color: '#666', marginBottom: '16px' }}>
-              Scan this QR code with any Android phone camera to download and test the app instantly.
-            </p>
-            <div style={{
-              background: '#fff',
-              padding: '12px',
-              borderRadius: '12px',
-              display: 'inline-block',
-              border: '1px solid #CCCAB8',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.06)',
-            }}>
-              <img 
-                src="/junction-qr.png" 
-                alt="Scan to download APK" 
-                style={{ width: '200px', height: '200px', display: 'block' }} 
-              />
-            </div>
-            <div style={{ marginTop: '16px' }}>
-              <a 
-                href="/junction-attendee.apk" 
-                download 
-                className="btn btn-primary" 
-                style={{ display: 'block', padding: '10px', background: '#111', color: '#fff', borderRadius: '8px', textDecoration: 'none', fontWeight: '700', fontSize: '13px' }}
-              >
-                ⬇ Direct Download APK (49.9 MB)
-              </a>
-            </div>
-          </div>
         </div>
       </div>
     </div>
