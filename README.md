@@ -18,11 +18,11 @@ Install the **Junction Attendee App** on any Android device anywhere in seconds:
   <br />
   <sub><b>👆 Scan this QR code with any smartphone camera to download & install instantly</b></sub>
   <br /><br />
-  <a href="https://github.com/NihalMishra3009/Junction-App/releases/latest/download/junction-attendee.apk">
-    <img src="https://img.shields.io/badge/Download-Android%20APK%20(Release)-0A84FF?style=for-the-badge&logo=android&logoColor=white" height="42" />
+  <a href="https://github.com/NihalMishra3009/Junction-App/raw/main/public/junction-attendee.apk">
+    <img src="https://img.shields.io/badge/Download-Android%20APK%20(Direct%20Download)-0A84FF?style=for-the-badge&logo=android&logoColor=white" height="42" />
   </a>
   <br />
-  <p>Direct Download URL: <code>https://github.com/NihalMishra3009/Junction-App/releases/latest/download/junction-attendee.apk</code></p>
+  <p>Direct Download URL: <code>https://github.com/NihalMishra3009/Junction-App/raw/main/public/junction-attendee.apk</code></p>
 </div>
 
 ---
