@@ -1,42 +1,156 @@
-
 .mapWrap {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--paper-dark);
-  border-radius: var(--radius-md);
+  background: radial-gradient(circle at 50% 20%, #151b2a 0%, #0c1017 100%);
+  border-radius: 16px;
   overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  position: relative;
 }
+
+/* Apple Maps Dark Floating Toolbar */
 .layerBar {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
   flex-wrap: wrap;
-  gap: 4px;
-  padding: 10px 14px;
-  background: var(--white);
-  border-bottom: 1px solid var(--neutral);
+  gap: 8px;
+  padding: 10px 16px;
+  background: rgba(18, 24, 38, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  z-index: 10;
 }
-.layerBtn {
-  padding: 4px 10px;
+
+.appleBadge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #94a3b8;
+  font-family: system-ui, -apple-system, sans-serif;
   text-transform: uppercase;
-  border-radius: var(--radius-pill);
-  background: var(--paper);
-  border: 1.5px solid var(--neutral);
-  color: var(--ink-muted);
-  cursor: pointer;
-  transition: all var(--t-fast);
 }
-.layerBtn:hover { border-color: var(--ink); color: var(--ink); }
-.layerActive { background: var(--ink) !important; color: var(--white) !important; border-color: var(--ink) !important; }
-.svgWrap { flex: 1; padding: 16px; display: flex; align-items: center; justify-content: center; min-height: 320px; }
-.svg { width: 100%; max-width: 560px; height: auto; }
-.node { transition: opacity var(--t-fast); }
-.node:hover { opacity: 0.85; }
-.haloAnimate { animation: hpulse 2.5s ease-in-out infinite; }
-@keyframes hpulse { 0%,100% { opacity: 0.5; } 50% { opacity: 1; } }
-.selectedRing { animation: spin-ring 8s linear infinite; }
-@keyframes spin-ring { from { transform-origin: center; } to { transform-origin: center; } }
-.flowLine { animation: flowAnim 2.5s ease-in-out infinite; animation-delay: var(--d, 0s); }
-@keyframes flowAnim { 0%,100% { opacity: 0.3; } 50% { opacity: 0.9; } }
+
+.appleDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #0A84FF;
+  box-shadow: 0 0 8px #0A84FF;
+  animation: appleGlow 2s ease-in-out infinite;
+}
+
+@keyframes appleGlow {
+  0%, 100% { opacity: 0.6; transform: scale(0.9); }
+  50% { opacity: 1; transform: scale(1.1); }
+}
+
+.buttonGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.layerBtn {
+  padding: 5px 11px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.layerBtn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+}
+
+.layerActive {
+  background: #0A84FF !important;
+  color: #ffffff !important;
+  border-color: #38bdf8 !important;
+  box-shadow: 0 0 12px rgba(10, 132, 255, 0.45);
+}
+
+/* SVG Container */
+.svgWrap {
+  flex: 1;
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 340px;
+  background: #090d14;
+}
+
+.svg {
+  width: 100%;
+  max-width: 580px;
+  height: auto;
+  filter: drop-shadow(0 10px 30px rgba(0, 0, 0, 0.7));
+}
+
+/* Interactive Elements */
+.node {
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.node:hover {
+  transform: scale(1.04);
+  opacity: 0.95;
+}
+
+.haloAnimate {
+  animation: hpulseDark 2.8s ease-in-out infinite;
+}
+
+@keyframes hpulseDark {
+  0%, 100% { opacity: 0.4; transform-origin: center; }
+  50% { opacity: 0.9; transform-origin: center; }
+}
+
+.selectedRing {
+  animation: spinRing 12s linear infinite;
+  transform-origin: center;
+}
+
+@keyframes spinRing {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.flowLine {
+  animation: flowAnimDark 2s ease-in-out infinite;
+  animation-delay: var(--d, 0s);
+}
+
+@keyframes flowAnimDark {
+  0%, 100% { opacity: 0.4; stroke-width: 2; }
+  50% { opacity: 1; stroke-width: 3.2; }
+}
+
+.pulseHotspot {
+  animation: hpulseDark 2s ease-in-out infinite;
+}
+
+.poiBadge {
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.poiBadge:hover {
+  transform: scale(1.1);
+}

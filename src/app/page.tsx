@@ -126,12 +126,32 @@ export default function LandingPage() {
             <p className={styles.portalDesc}>Personalized route planning, accommodation recommendations, real-time alerts, food & services guidance.</p>
             <span className={styles.portalCta}>Open Platform →</span>
           </Link>
-          <Link href="/partner" className={styles.portalCard}>
-            <div className={styles.portalIcon}>◈</div>
-            <h3 className={styles.portalTitle}>Partner Portal</h3>
-            <p className={styles.portalDesc}>Hotels, restaurants, and service operators update availability and receive event demand signals.</p>
-            <span className={styles.portalCta}>Open Portal →</span>
-          </Link>
+          <div className={styles.portalCard} style={{ background: '#FFFEEA', borderColor: '#F5C400' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div className={styles.portalIcon}>📱</div>
+              <span className="pill pill-live" style={{ fontSize: '10px' }}>● APK READY</span>
+            </div>
+            <h3 className={styles.portalTitle}>Scan to Install Android App</h3>
+            <p className={styles.portalDesc}>Scan with any phone camera on local Wi-Fi or download the release APK for real device testing.</p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginTop: '10px' }}>
+              <img 
+                src="/junction-qr.png" 
+                alt="Scan to download APK" 
+                style={{ width: '84px', height: '84px', borderRadius: '8px', border: '1px solid #CCCAB8', background: '#fff', padding: '4px' }} 
+              />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <a 
+                  href="/junction-attendee.apk" 
+                  download 
+                  className="btn btn-primary" 
+                  style={{ fontSize: '12px', padding: '6px 14px', background: '#111', color: '#fff', textDecoration: 'none', borderRadius: '6px', textAlign: 'center', fontWeight: 'bold' }}
+                >
+                  ⬇ Download APK
+                </a>
+                <span style={{ fontSize: '10px', color: '#666', fontFamily: 'monospace' }}>v1.0.0 (49.9 MB)</span>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -162,148 +182,191 @@ function DestinationViz() {
       aria-label="Destination intelligence schematic map"
     >
       <defs>
-        <radialGradient id="halocrit" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#EF4444" stopOpacity="0.25" />
-          <stop offset="100%" stopColor="#EF4444" stopOpacity="0" />
+        <radialGradient id="appleWaterHome" cx="0%" cy="100%" r="100%">
+          <stop offset="0%" stopColor="#0a1428" />
+          <stop offset="100%" stopColor="#060b14" />
         </radialGradient>
-        <radialGradient id="halohigh" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#F97316" stopOpacity="0.18" />
-          <stop offset="100%" stopColor="#F97316" stopOpacity="0" />
+
+        <linearGradient id="appleLandHome" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#111624" />
+          <stop offset="50%" stopColor="#141a29" />
+          <stop offset="100%" stopColor="#0e1320" />
+        </linearGradient>
+
+        <linearGradient id="marineDriveGlowHome" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#00f2fe" />
+          <stop offset="100%" stopColor="#4facfe" />
+        </linearGradient>
+
+        <radialGradient id="halocritDarkHome" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#FF453A" stopOpacity="0.45" />
+          <stop offset="50%" stopColor="#FF453A" stopOpacity="0.2" />
+          <stop offset="100%" stopColor="#FF453A" stopOpacity="0" />
         </radialGradient>
-        <radialGradient id="halowatch" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#F5C400" stopOpacity="0.18" />
-          <stop offset="100%" stopColor="#F5C400" stopOpacity="0" />
+        <radialGradient id="halohighDarkHome" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#FF9F0A" stopOpacity="0.4" />
+          <stop offset="50%" stopColor="#FF9F0A" stopOpacity="0.18" />
+          <stop offset="100%" stopColor="#FF9F0A" stopOpacity="0" />
         </radialGradient>
-        <radialGradient id="halomain" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#F5C400" stopOpacity="0.35" />
-          <stop offset="100%" stopColor="#F5C400" stopOpacity="0" />
+        <radialGradient id="halowatchDarkHome" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#FFD60A" stopOpacity="0.35" />
+          <stop offset="50%" stopColor="#FFD60A" stopOpacity="0.15" />
+          <stop offset="100%" stopColor="#FFD60A" stopOpacity="0" />
         </radialGradient>
-        <marker id="arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-          <polygon points="0 0, 8 3, 0 6" fill="#F5C400" opacity="0.7" />
+        <radialGradient id="halomainDarkHome" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#0A84FF" stopOpacity="0.4" />
+          <stop offset="100%" stopColor="#0A84FF" stopOpacity="0" />
+        </radialGradient>
+
+        <marker id="arrowAppleRedHome" markerWidth="7" markerHeight="5" refX="7" refY="2.5" orient="auto">
+          <polygon points="0 0, 7 2.5, 0 5" fill="#FF453A" />
         </marker>
-        <marker id="arrowred" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-          <polygon points="0 0, 8 3, 0 6" fill="#EF4444" opacity="0.6" />
+        <marker id="arrowAppleAmberHome" markerWidth="7" markerHeight="5" refX="7" refY="2.5" orient="auto">
+          <polygon points="0 0, 7 2.5, 0 5" fill="#FF9F0A" />
         </marker>
-        <marker id="arrowgrey" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-          <polygon points="0 0, 8 3, 0 6" fill="#999" opacity="0.5" />
+        <marker id="arrowAppleCyanHome" markerWidth="7" markerHeight="5" refX="7" refY="2.5" orient="auto">
+          <polygon points="0 0, 7 2.5, 0 5" fill="#0A84FF" />
         </marker>
       </defs>
 
-      {/* Background grid dots */}
-      <pattern id="dots" x="0" y="0" width="24" height="24" patternUnits="userSpaceOnUse">
-        <circle cx="1" cy="1" r="1" fill="#E7E5DE" opacity="0.8" />
+      {/* 1. MAP BACKGROUND & COASTLINE */}
+      <rect width="500" height="440" fill="url(#appleLandHome)" />
+
+      {/* Arabian Sea / Coastline */}
+      <path
+        d="M 0 0 L 120 0 Q 90 200 75 300 Q 65 370 0 440 Z"
+        fill="url(#appleWaterHome)"
+        opacity="0.9"
+      />
+      <path
+        d="M 120 0 Q 90 200 75 300 Q 65 370 0 440"
+        stroke="#1d4ed8"
+        strokeWidth="2.5"
+        strokeOpacity="0.4"
+        fill="none"
+      />
+
+      {/* Apple Dark Micro Grid Pattern */}
+      <pattern id="dotsHome" x="0" y="0" width="22" height="22" patternUnits="userSpaceOnUse">
+        <path d="M 22 0 L 0 0 0 22" fill="none" stroke="#222b40" strokeWidth="0.5" strokeOpacity="0.3" />
+        <circle cx="11" cy="11" r="0.6" fill="#3b4866" opacity="0.3" />
       </pattern>
-      <rect width="500" height="440" fill="url(#dots)" />
+      <rect width="500" height="440" fill="url(#dotsHome)" />
 
-      {/* === ROAD LINES === */}
-      <line x1="320" y1="290" x2="220" y2="350" stroke="#CCCAB8" strokeWidth="3" strokeLinecap="round" />
-      <line x1="320" y1="290" x2="260" y2="295" stroke="#CCCAB8" strokeWidth="3" strokeLinecap="round" />
-      <line x1="320" y1="290" x2="450" y2="240" stroke="#CCCAB8" strokeWidth="2.5" strokeLinecap="round" />
-      <line x1="320" y1="290" x2="380" y2="130" stroke="#CCCAB8" strokeWidth="2.5" strokeLinecap="round" />
-      <line x1="220" y1="350" x2="120" y2="380" stroke="#CCCAB8" strokeWidth="2" strokeLinecap="round" />
-      <line x1="450" y1="240" x2="380" y2="130" stroke="#CCCAB8" strokeWidth="2" strokeLinecap="round" />
-      <line x1="260" y1="295" x2="220" y2="350" stroke="#CCCAB8" strokeWidth="2" strokeLinecap="round" />
-      {/* Marine Drive coastal road */}
-      <path d="M 100 310 Q 180 330 260 295 Q 310 285 320 290" stroke="#CCCAB8" strokeWidth="2" fill="none" strokeLinecap="round" />
+      {/* Subtle City Blocks */}
+      <g opacity="0.25">
+        <rect x="170" y="140" width="45" height="35" rx="3" fill="#242e47" />
+        <rect x="230" y="150" width="60" height="40" rx="3" fill="#242e47" />
+        <rect x="300" y="140" width="50" height="30" rx="3" fill="#242e47" />
+        <rect x="385" y="180" width="40" height="50" rx="3" fill="#242e47" />
+        <rect x="170" y="250" width="55" height="45" rx="3" fill="#242e47" />
+      </g>
 
-      {/* === CROWD FLOW ARROWS — animated === */}
+      {/* === ROAD CASINGS & HIGHWAYS === */}
+      <line x1="320" y1="290" x2="220" y2="350" stroke="#1b2336" strokeWidth="6" strokeLinecap="round" />
+      <line x1="320" y1="290" x2="260" y2="295" stroke="#1b2336" strokeWidth="6" strokeLinecap="round" />
+      <line x1="320" y1="290" x2="450" y2="240" stroke="#1b2336" strokeWidth="5" strokeLinecap="round" />
+      <line x1="320" y1="290" x2="380" y2="130" stroke="#1b2336" strokeWidth="5" strokeLinecap="round" />
+      <line x1="220" y1="350" x2="120" y2="380" stroke="#1b2336" strokeWidth="4" strokeLinecap="round" />
+      <line x1="450" y1="240" x2="380" y2="130" stroke="#1b2336" strokeWidth="4" strokeLinecap="round" />
+
+      {/* Road Inner Fills */}
+      <line x1="320" y1="290" x2="220" y2="350" stroke="#2e3a55" strokeWidth="3" strokeLinecap="round" />
+      <line x1="320" y1="290" x2="260" y2="295" stroke="#2e3a55" strokeWidth="3" strokeLinecap="round" />
+      <line x1="320" y1="290" x2="450" y2="240" stroke="#2e3a55" strokeWidth="2.5" strokeLinecap="round" />
+      <line x1="320" y1="290" x2="380" y2="130" stroke="#2e3a55" strokeWidth="2.5" strokeLinecap="round" />
+      <line x1="220" y1="350" x2="120" y2="380" stroke="#2e3a55" strokeWidth="2" strokeLinecap="round" />
+      <line x1="450" y1="240" x2="380" y2="130" stroke="#2e3a55" strokeWidth="2" strokeLinecap="round" />
+
+      {/* Marine Drive Coastal Road Glow */}
+      <path d="M 80 300 Q 180 330 260 295 Q 310 285 320 290" stroke="url(#marineDriveGlowHome)" strokeWidth="3" fill="none" strokeLinecap="round" />
+
+      {/* === CROWD FLOW ARROWS === */}
       {/* Churchgate → Wankhede */}
       <g className={styles.flowArrow} style={{"--flow-delay":"0s"} as React.CSSProperties}>
-        <line x1="235" y1="342" x2="300" y2="298" stroke="#EF4444" strokeWidth="1.5" strokeDasharray="5,4" markerEnd="url(#arrowred)" opacity="0.7" />
+        <line x1="235" y1="342" x2="300" y2="298" stroke="#FF453A" strokeWidth="2" strokeDasharray="5,4" markerEnd="url(#arrowAppleRedHome)" opacity="0.85" />
       </g>
       {/* CSMT → Wankhede */}
       <g className={styles.flowArrow} style={{"--flow-delay":"0.5s"} as React.CSSProperties}>
-        <line x1="435" y1="248" x2="340" y2="284" stroke="#F5C400" strokeWidth="1.5" strokeDasharray="5,4" markerEnd="url(#arrow)" opacity="0.7" />
+        <line x1="435" y1="248" x2="340" y2="284" stroke="#FF9F0A" strokeWidth="1.8" strokeDasharray="5,4" markerEnd="url(#arrowAppleAmberHome)" opacity="0.8" />
       </g>
       {/* Dadar → Wankhede */}
       <g className={styles.flowArrow} style={{"--flow-delay":"1s"} as React.CSSProperties}>
-        <line x1="382" y1="148" x2="330" y2="278" stroke="#F5C400" strokeWidth="1.5" strokeDasharray="5,4" markerEnd="url(#arrow)" opacity="0.6" />
+        <line x1="382" y1="148" x2="330" y2="278" stroke="#FFD60A" strokeWidth="1.6" strokeDasharray="5,4" markerEnd="url(#arrowAppleAmberHome)" opacity="0.7" />
       </g>
       {/* Marine Lines → Wankhede */}
       <g className={styles.flowArrow} style={{"--flow-delay":"1.5s"} as React.CSSProperties}>
-        <line x1="274" y1="297" x2="306" y2="290" stroke="#999" strokeWidth="1.5" strokeDasharray="5,4" markerEnd="url(#arrowgrey)" opacity="0.5" />
+        <line x1="274" y1="297" x2="306" y2="290" stroke="#0A84FF" strokeWidth="1.6" strokeDasharray="5,4" markerEnd="url(#arrowAppleCyanHome)" opacity="0.7" />
       </g>
 
       {/* === PRESSURE HALOS === */}
-      {/* Churchgate — WATCH */}
-      <circle cx="220" cy="350" r="52" fill="url(#halocrit)" className={styles.haloAnimate} />
-      <circle cx="220" cy="350" r="38" fill="url(#halocrit)" className={styles.haloAnimate} style={{"--halo-delay":"0.5s"} as React.CSSProperties} />
-      {/* Wankhede — main event */}
-      <circle cx="320" cy="290" r="65" fill="url(#halomain)" className={styles.haloAnimate} style={{"--halo-delay":"0.3s"} as React.CSSProperties} />
-      {/* CSMT — WATCH */}
-      <circle cx="450" cy="240" r="42" fill="url(#halowatch)" className={styles.haloAnimate} style={{"--halo-delay":"0.7s"} as React.CSSProperties} />
-      {/* Taxi Zone — HIGH */}
-      <circle cx="370" cy="340" r="30" fill="url(#halohigh)" className={styles.haloAnimate} style={{"--halo-delay":"1s"} as React.CSSProperties} />
+      <circle cx="220" cy="350" r="54" fill="url(#halocritDarkHome)" className={styles.haloAnimate} />
+      <circle cx="320" cy="290" r="68" fill="url(#halomainDarkHome)" className={styles.haloAnimate} style={{"--halo-delay":"0.3s"} as React.CSSProperties} />
+      <circle cx="450" cy="240" r="42" fill="url(#halowatchDarkHome)" className={styles.haloAnimate} style={{"--halo-delay":"0.7s"} as React.CSSProperties} />
+      <circle cx="370" cy="340" r="32" fill="url(#halohighDarkHome)" className={styles.haloAnimate} style={{"--halo-delay":"1s"} as React.CSSProperties} />
 
-      {/* === HOTEL MARKERS === */}
-      <rect x="158" y="258" width="10" height="10" rx="2" fill="#111" opacity="0.5" />
-      <rect x="174" y="262" width="8" height="8" rx="2" fill="#111" opacity="0.4" />
-      <rect x="148" y="310" width="9" height="9" rx="2" fill="#111" opacity="0.4" />
-      <rect x="415" y="160" width="10" height="10" rx="2" fill="#111" opacity="0.5" />
-      <rect x="400" y="175" width="8" height="8" rx="2" fill="#111" opacity="0.4" />
-      {/* Hotel labels */}
-      <text x="145" y="256" fontSize="8" fill="#666" fontFamily="Inter, sans-serif" letterSpacing="0.04em">HOTEL</text>
-      <text x="408" y="158" fontSize="8" fill="#666" fontFamily="Inter, sans-serif" letterSpacing="0.04em">HOTEL</text>
+      {/* === HOTEL & POI BADGES === */}
+      <g>
+        <rect x="156" y="256" width="12" height="12" rx="3" fill="#5E5CE6" stroke="#ffffff" strokeWidth="0.8" />
+        <text x="162" y="265" fontSize="7" fill="#ffffff" textAnchor="middle">🛏️</text>
+        <rect x="412" y="158" width="12" height="12" rx="3" fill="#5E5CE6" stroke="#ffffff" strokeWidth="0.8" />
+        <text x="418" y="167" fontSize="7" fill="#ffffff" textAnchor="middle">🛏️</text>
+      </g>
 
-      {/* === RESTAURANT MARKERS === */}
-      <circle cx="192" cy="310" r="4" fill="#F97316" opacity="0.6" />
-      <circle cx="350" cy="200" r="4" fill="#F97316" opacity="0.6" />
-      <circle cx="290" cy="255" r="4" fill="#F97316" opacity="0.5" />
+      {/* === RESTAURANT POI BADGES === */}
+      <circle cx="192" cy="310" r="5" fill="#FF6482" stroke="#ffffff" strokeWidth="0.8" />
+      <circle cx="350" cy="200" r="5" fill="#FF6482" stroke="#ffffff" strokeWidth="0.8" />
 
       {/* === TAXI/PICKUP ZONE === */}
-      <rect x="355" y="325" width="32" height="20" rx="4" fill="#F5C400" opacity="0.3" stroke="#F5C400" strokeWidth="1" />
-      <text x="371" y="338" fontSize="7" fill="#111" fontFamily="Inter, sans-serif" textAnchor="middle" letterSpacing="0.04em">TAXI</text>
+      <rect x="345" y="325" width="50" height="22" rx="6" fill="#FF9F0A20" stroke="#FF9F0A" strokeWidth="1.5" />
+      <text x="370" y="339" fontSize="7.5" fill="#FFD60A" fontFamily="system-ui, -apple-system" textAnchor="middle" fontWeight="700">🚕 TAXI HUB</text>
 
-      {/* === STATION NODES === */}
+      {/* === STATION NODES (Apple Maps Dark 3D Badges) === */}
       {/* Churchgate */}
-      <circle cx="220" cy="350" r="22" fill="white" stroke="#EF4444" strokeWidth="2.5" />
-      <circle cx="220" cy="350" r="14" fill="#EF4444" opacity="0.15" />
-      <circle cx="220" cy="350" r="7" fill="#EF4444" />
-      <text x="220" y="382" fontSize="9.5" fill="#111" fontFamily="Space Grotesk, sans-serif" fontWeight="600" textAnchor="middle" letterSpacing="0.04em">CHURCHGATE</text>
-      <text x="220" y="393" fontSize="8" fill="#EF4444" fontFamily="Inter, sans-serif" textAnchor="middle" fontWeight="600">94%</text>
+      <circle cx="220" cy="350" r="20" fill="#121827" stroke="#FF453A" strokeWidth="2.5" />
+      <circle cx="220" cy="350" r="10" fill="#FF453A" fillOpacity="0.25" />
+      <text x="220" y="354" fontSize="10" textAnchor="middle">🚆</text>
+      <rect x="180" y="375" width="80" height="16" rx="4" fill="rgba(15, 23, 42, 0.85)" stroke="rgba(255, 255, 255, 0.1)" strokeWidth="0.8" />
+      <text x="220" y="386" fontSize="7" fill="#f8fafc" fontFamily="system-ui" fontWeight="700" textAnchor="middle">CHURCHGATE</text>
 
       {/* Marine Lines */}
-      <circle cx="260" cy="295" r="15" fill="white" stroke="#CA8A04" strokeWidth="2" />
-      <circle cx="260" cy="295" r="7" fill="#CA8A04" opacity="0.4" />
-      <circle cx="260" cy="295" r="4" fill="#CA8A04" />
-      <text x="260" y="274" fontSize="8.5" fill="#111" fontFamily="Space Grotesk, sans-serif" fontWeight="600" textAnchor="middle" letterSpacing="0.03em">MARINE LINES</text>
+      <circle cx="260" cy="295" r="14" fill="#121827" stroke="#0A84FF" strokeWidth="2" />
+      <circle cx="260" cy="295" r="7" fill="#0A84FF" fillOpacity="0.25" />
+      <text x="260" y="299" fontSize="8" textAnchor="middle">🚇</text>
 
       {/* CSMT */}
-      <circle cx="450" cy="240" r="18" fill="white" stroke="#CA8A04" strokeWidth="2" />
-      <circle cx="450" cy="240" r="10" fill="#CA8A04" opacity="0.15" />
-      <circle cx="450" cy="240" r="5" fill="#CA8A04" />
-      <text x="450" y="216" fontSize="9.5" fill="#111" fontFamily="Space Grotesk, sans-serif" fontWeight="600" textAnchor="middle" letterSpacing="0.04em">CSMT</text>
-      <text x="450" y="227" fontSize="8" fill="#CA8A04" fontFamily="Inter, sans-serif" textAnchor="middle" fontWeight="600">58%</text>
+      <circle cx="450" cy="240" r="17" fill="#121827" stroke="#FF9F0A" strokeWidth="2" />
+      <circle cx="450" cy="240" r="9" fill="#FF9F0A" fillOpacity="0.25" />
+      <text x="450" y="244" fontSize="9" textAnchor="middle">🏛️</text>
+      <rect x="420" y="260" width="60" height="16" rx="4" fill="rgba(15, 23, 42, 0.85)" stroke="rgba(255, 255, 255, 0.1)" strokeWidth="0.8" />
+      <text x="450" y="271" fontSize="7" fill="#f8fafc" fontFamily="system-ui" fontWeight="700" textAnchor="middle">CSMT · 58%</text>
 
       {/* Dadar */}
-      <circle cx="380" cy="130" r="18" fill="white" stroke="#16A34A" strokeWidth="2" />
-      <circle cx="380" cy="130" r="9" fill="#16A34A" opacity="0.15" />
-      <circle cx="380" cy="130" r="5" fill="#16A34A" />
-      <text x="380" y="109" fontSize="9.5" fill="#111" fontFamily="Space Grotesk, sans-serif" fontWeight="600" textAnchor="middle" letterSpacing="0.04em">DADAR</text>
-      <text x="380" y="120" fontSize="8" fill="#16A34A" fontFamily="Inter, sans-serif" textAnchor="middle" fontWeight="600">58%</text>
+      <circle cx="380" cy="130" r="16" fill="#121827" stroke="#30D158" strokeWidth="2" />
+      <circle cx="380" cy="130" r="8" fill="#30D158" fillOpacity="0.25" />
+      <text x="380" y="134" fontSize="9" textAnchor="middle">🚉</text>
+      <rect x="350" y="96" width="60" height="16" rx="4" fill="rgba(15, 23, 42, 0.85)" stroke="rgba(255, 255, 255, 0.1)" strokeWidth="0.8" />
+      <text x="380" y="107" fontSize="7" fill="#f8fafc" fontFamily="system-ui" fontWeight="700" textAnchor="middle">DADAR · 58%</text>
 
-      {/* === WANKHEDE — MAIN EVENT NODE === */}
-      <circle cx="320" cy="290" r="38" fill="#F5C400" opacity="0.2" />
-      <circle cx="320" cy="290" r="28" fill="#111" />
-      <circle cx="320" cy="290" r="22" fill="#F5C400" opacity="0.2" />
-      {/* W icon */}
-      <text x="320" y="296" fontSize="13" fill="#F5C400" fontFamily="Space Grotesk, sans-serif" fontWeight="700" textAnchor="middle">W</text>
-      <text x="320" y="344" fontSize="10" fill="#111" fontFamily="Space Grotesk, sans-serif" fontWeight="700" textAnchor="middle" letterSpacing="0.05em">WANKHEDE</text>
-      <text x="320" y="356" fontSize="8.5" fill="#666" fontFamily="Inter, sans-serif" textAnchor="middle">STADIUM · IPL</text>
+      {/* === WANKHEDE — MAIN EVENT LANDMARK === */}
+      <circle cx="320" cy="290" r="26" fill="#0d1424" stroke="#00f2fe" strokeWidth="2.5" />
+      <circle cx="320" cy="290" r="18" fill="#10b98133" stroke="#30D158" strokeWidth="1.5" />
+      <text x="320" y="295" fontSize="13" textAnchor="middle">🏟️</text>
+      <rect x="270" y="322" width="100" height="20" rx="5" fill="#FF453A" stroke="#ffffff" strokeWidth="0.8" />
+      <text x="320" y="335" fontSize="8" fill="#ffffff" fontFamily="system-ui" fontWeight="800" textAnchor="middle" letterSpacing="0.04em">
+        WANKHEDE STADIUM
+      </text>
 
-      {/* Taxi zone label */}
-      <text x="371" y="316" fontSize="8" fill="#111" fontFamily="Space Grotesk, sans-serif" fontWeight="600" textAnchor="middle" letterSpacing="0.04em">PICKUP</text>
-
-      {/* === LEGEND === */}
-      <rect x="12" y="400" width="200" height="32" rx="8" fill="white" opacity="0.9" />
-      <circle cx="28" cy="416" r="4" fill="#EF4444" />
-      <text x="37" y="420" fontSize="8" fill="#333" fontFamily="Inter, sans-serif">Critical</text>
-      <circle cx="78" cy="416" r="4" fill="#F97316" />
-      <text x="87" y="420" fontSize="8" fill="#333" fontFamily="Inter, sans-serif">High</text>
-      <circle cx="120" cy="416" r="4" fill="#CA8A04" />
-      <text x="129" y="420" fontSize="8" fill="#333" fontFamily="Inter, sans-serif">Watch</text>
-      <circle cx="162" cy="416" r="4" fill="#16A34A" />
-      <text x="171" y="420" fontSize="8" fill="#333" fontFamily="Inter, sans-serif">Normal</text>
+      {/* === APPLE MAPS DARK LEGEND === */}
+      <rect x="12" y="396" width="220" height="34" rx="8" fill="rgba(18, 24, 38, 0.9)" stroke="rgba(255, 255, 255, 0.12)" />
+      <circle cx="26" cy="413" r="4" fill="#FF453A" />
+      <text x="34" y="416" fontSize="7.5" fill="#f8fafc" fontFamily="system-ui" fontWeight="600">Critical</text>
+      <circle cx="76" cy="413" r="4" fill="#FF9F0A" />
+      <text x="84" y="416" fontSize="7.5" fill="#f8fafc" fontFamily="system-ui" fontWeight="600">High</text>
+      <circle cx="120" cy="413" r="4" fill="#FFD60A" />
+      <text x="128" y="416" fontSize="7.5" fill="#f8fafc" fontFamily="system-ui" fontWeight="600">Watch</text>
+      <circle cx="166" cy="413" r="4" fill="#30D158" />
+      <text x="174" y="416" fontSize="7.5" fill="#f8fafc" fontFamily="system-ui" fontWeight="600">Optimal</text>
     </svg>
   );
 }
