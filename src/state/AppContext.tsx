@@ -1,7 +1,28 @@
 "use client";
-import React, { createContext, useContext, useState, useCallback, ReactNode } from "react";
-import { ScenarioId, Recommendation } from "@/types";
+import React, { createContext, useContext, useState, useCallback, useMemo, useEffect, ReactNode } from "react";
+import {
+  ScenarioId,
+  Recommendation,
+  Hotel,
+  Resource,
+  Alert,
+  RedistributionImpact,
+  SimulationState,
+  SimulationSpeed,
+  SimulationParams,
+  ZoneState,
+} from "@/types";
 import { MOCK_RECOMMENDATIONS } from "@/data/mockRecommendations";
+import { getHotels, getResources, getScenarioKPIs, getAlerts } from "@/services/mockDataService";
+import { getPressureLevel } from "@/data/mockResources";
+import { createInitialSimulationState, nextSimulationState, calculateOutflowRate } from "@/services/simulationEngine";
+import { OPERATIONAL_ZONES, fuseZoneState } from "@/services/zoneRegistry";
+import { deviceRegistry } from "@/services/deviceRegistry";
+import { sensorStreamSimulator } from "@/services/sensorStreamSimulator";
+import { ingestionPipeline } from "@/services/ingestionPipeline";
+import { sensorFusionEngine } from "@/services/sensorFusionEngine";
+import { hotspotAndCascadeEngine } from "@/services/hotspotAndCascadeEngine";
+import { recommendationLifecycleEngine } from "@/services/recommendationLifecycleEngine";
 
 interface AppContextValue {
   // Scenario
@@ -24,6 +45,39 @@ interface AppContextValue {
 
   // Destination pressure adjusted for attendee choice
   redistributionApplied: boolean;
+  redistributionImpact: RedistributionImpact | null;
+
+  // Centralized Dynamic Hotels
+  hotels: Hotel[];
+  hotelOverrides: Record<string, Partial<Hotel>>;
+  updateHotelAvailability: (hotelId: string, availableRooms: number, checkIns?: number, checkOuts?: number) => void;
+  resetHotels: () => void;
+
+  // Centralized Dynamic Destination State
+  resources: Resource[];
+  kpis: ReturnType<typeof getScenarioKPIs>;
+  alerts: Alert[];
+
+  // Simulation Engine State & Controls
+  simulationState: SimulationState;
+  playSimulation: () => void;
+  pauseSimulation: () => void;
+  resetSimulation: () => void;
+  setSimulationSpeed: (speed: SimulationSpeed) => void;
+  simParams: SimulationParams;
+  updateSimParams: (p: Partial<SimulationParams>) => void;
+
+  // Zone Registry & Fused State
+  zones: ZoneState[];
+  getZoneState: (zoneId: string) => ZoneState | undefined;
+
+  // Real-Time Hardware-Agnostic & CV Intelligence (Additive Seams)
+  devices: import("@/types").DeviceDefinition[];
+  latestObservations: import("@/types").NormalizedObservation[];
+  hotspots: import("@/types").HotspotPrediction[];
+  cascadeResult: import("@/types").CascadeAnalysisResult | null;
+  interventions: import("@/types").OperationalIntervention[];
+  auditRecords: import("@/types").AuditRecord[];
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -32,14 +86,65 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [activeScenario, setActiveScenario] = useState<ScenarioId>("NORMAL");
   const [recommendations, setRecommendations] = useState<Recommendation[]>(MOCK_RECOMMENDATIONS);
   const [attendeeSelectedRouteId, setAttendeeSelectedRouteId] = useState<string | null>(null);
+  const [hotelOverrides, setHotelOverrides] = useState<Record<string, Partial<Hotel>>>({});
 
+  // Simulation Parameters
+  const [simParams, setSimParams] = useState<SimulationParams>({
+    attendance: 33000,
+    eventDelay: 0,
+    weather: "NORMAL",
+    additionalBuses: 0,
+    visitorRedistribution: 0,
+    transportDisruption: false,
+  });
+
+  // Pure Domain Simulation State
+  const [simulationState, setSimulationState] = useState<SimulationState>(() =>
+    createInitialSimulationState(activeScenario, simParams.attendance)
+  );
+
+  // Play / Pause / Reset / Speed Controls
+  const playSimulation = useCallback(() => {
+    setSimulationState(prev => ({ ...prev, status: "PLAYING" }));
+  }, []);
+
+  const pauseSimulation = useCallback(() => {
+    setSimulationState(prev => ({ ...prev, status: "PAUSED" }));
+  }, []);
+
+  const resetSimulation = useCallback(() => {
+    setSimulationState(createInitialSimulationState(activeScenario, simParams.attendance));
+  }, [activeScenario, simParams.attendance]);
+
+  const setSimulationSpeed = useCallback((speed: SimulationSpeed) => {
+    setSimulationState(prev => ({ ...prev, speed }));
+  }, []);
+
+  const updateSimParams = useCallback((p: Partial<SimulationParams>) => {
+    setSimParams(prev => {
+      const next = { ...prev, ...p };
+      // Base parameter change rule: Changing attendance, weather, eventDelay, or disruption
+      // cleanly reinitializes the simulation from the new configuration.
+      const baseChanged =
+        p.attendance !== undefined ||
+        p.weather !== undefined ||
+        p.transportDisruption !== undefined ||
+        p.eventDelay !== undefined;
+      if (baseChanged) {
+        setSimulationState(createInitialSimulationState(activeScenario, next.attendance));
+      }
+      return next;
+    });
+  }, [activeScenario]);
+
+  // Reset entire state when scenario changes to prevent leakage across scenarios
   const setScenario = useCallback((s: ScenarioId) => {
     setActiveScenario(s);
-    // Reset attendee selection on scenario change
     setAttendeeSelectedRouteId(null);
-    // Reset recommendation statuses
     setRecommendations(MOCK_RECOMMENDATIONS.map(r => ({ ...r, status: "PENDING" as const })));
-  }, []);
+    setHotelOverrides({});
+    setSimulationState(createInitialSimulationState(s, simParams.attendance));
+  }, [simParams.attendance]);
 
   const approveRecommendation = useCallback((id: string) => {
     setRecommendations(prev =>
@@ -61,6 +166,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setAttendeeSelectedRouteId(id);
   }, []);
 
+  // Hotel update handler for partner portal
+  const updateHotelAvailability = useCallback((
+    hotelId: string,
+    availableRooms: number,
+    checkIns?: number,
+    checkOuts?: number
+  ) => {
+    setHotelOverrides(prev => ({
+      ...prev,
+      [hotelId]: {
+        ...(prev[hotelId] || {}),
+        availableRooms,
+        ...(checkIns !== undefined ? { expectedCheckIns: checkIns } : {}),
+        ...(checkOuts !== undefined ? { expectedCheckOuts: checkOuts } : {}),
+      },
+    }));
+  }, []);
+
+  const resetHotels = useCallback(() => {
+    setHotelOverrides({});
+  }, []);
+
+  // Compute dynamic hotels incorporating scenario multiplier and partner updates
+  const hotels = useMemo(() => {
+    return getHotels(activeScenario, hotelOverrides);
+  }, [activeScenario, hotelOverrides]);
+
   // REC1 affects attendees (redistribute Churchgate -> Dadar)
   const rec1Approved = recommendations.find(r => r.id === "REC1")?.status === "APPROVED";
   const hasAttendeeRecommendation = rec1Approved;
@@ -71,13 +203,208 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // If attendee selected BALANCED route and rec1 is approved, redistribution is applied
   const redistributionApplied = rec1Approved && attendeeSelectedRouteId === "BALANCED";
 
+  const redistributionImpact: RedistributionImpact | null = useMemo(() => {
+    if (!redistributionApplied) return null;
+    return {
+      churchgateBefore: 94,
+      churchgateAfter: 76,
+      dadarBefore: 58,
+      dadarAfter: 69,
+      wankhedeExitBefore: 88,
+      wankhedeExitAfter: 82,
+      visitorsRedistributed: 1200,
+      travelDeltaMin: 8,
+    };
+  }, [redistributionApplied]);
+
+  // Controlled Simulation Ticker Loop
+  // Fires at a controlled cadence (800ms) when status is PLAYING.
+  // Advances simulation time by (1 * speed) simulated minutes per tick.
+  useEffect(() => {
+    if (simulationState.status !== "PLAYING") return;
+
+    const timer = setInterval(() => {
+      setSimulationState(prev => {
+        if (prev.status !== "PLAYING") return prev;
+        return nextSimulationState(
+          prev,
+          1 * prev.speed,
+          activeScenario,
+          simParams.attendance,
+          redistributionApplied
+        );
+      });
+    }, 800);
+
+    return () => clearInterval(timer);
+  }, [
+    simulationState.status,
+    simulationState.speed,
+    activeScenario,
+    simParams.attendance,
+    redistributionApplied,
+  ]);
+
+  // Dynamic destination resources (reflecting scenario + attendee redistribution + live simulation loads)
+  const resources = useMemo(() => {
+    const baseResources = getResources(activeScenario, redistributionApplied);
+
+    // If simulation has run (minutesElapsed > 0), seamlessly incorporate simulation node loads
+    if (simulationState.minutesElapsed > 0) {
+      return baseResources.map(r => {
+        const simLoad = simulationState.nodeLoads[r.id];
+        if (simLoad !== undefined) {
+          const cap = r.totalCapacity || 1000;
+          const pressure = Math.min(99, Math.max(20, Math.round((simLoad / cap) * 100)));
+          const pressureLevel = getPressureLevel(pressure);
+          return {
+            ...r,
+            pressure,
+            pressureLevel,
+            currentUtilization: simLoad,
+            availableCapacity: Math.max(0, cap - simLoad),
+          };
+        }
+        return r;
+      });
+    }
+
+    return baseResources;
+  }, [
+    activeScenario,
+    redistributionApplied,
+    simulationState.minutesElapsed,
+    simulationState.nodeLoads,
+  ]);
+
+  // Dynamic KPIs (destination pressure, usable capacity including hotels, bottleneck)
+  const kpis = useMemo(() => {
+    return getScenarioKPIs(activeScenario, redistributionApplied, hotels, resources);
+  }, [activeScenario, redistributionApplied, hotels, resources]);
+
+  // Real-Time Normalized Observation Pipeline (Runs when simulation steps)
+  const latestObservations = useMemo(() => {
+    const currentOutflowRate = calculateOutflowRate(
+      simulationState.minutesElapsed,
+      activeScenario,
+      simParams.attendance
+    );
+    const rawObs = sensorStreamSimulator.generateObservationsForState(
+      simulationState.nodeLoads,
+      currentOutflowRate
+    );
+    const normalizedResult = ingestionPipeline.processBatch(rawObs);
+    return normalizedResult.accepted;
+  }, [simulationState.nodeLoads, simulationState.minutesElapsed, activeScenario, simParams.attendance]);
+
+  // Fused Zone States — Guarded hybrid fusion algorithm (DR-001)
+  // Combines real-time multi-sensor fusion with legacy zoneRegistry fallback for uninstrumented zones.
+  const zones = useMemo((): ZoneState[] => {
+    return OPERATIONAL_ZONES.map(zone =>
+      sensorFusionEngine.fuseZoneObservations(
+        zone,
+        latestObservations,
+        {
+          scenario: activeScenario,
+          resources,
+          hotels,
+          simulationState,
+          redistributionApplied,
+        }
+      )
+    );
+  }, [latestObservations, resources, hotels, activeScenario, simulationState.minutesElapsed, simulationState.nodeLoads, redistributionApplied]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const getZoneState = useCallback(
+    (zoneId: string): ZoneState | undefined => zones.find(z => z.id === zoneId),
+    [zones]
+  );
+
+  // Dynamic alerts
+  const alerts = useMemo(() => {
+    const baseAlerts = getAlerts(activeScenario);
+    const dynamicList: Alert[] = [...baseAlerts];
+
+    // If redistribution is active, add positive closed loop alert
+    if (redistributionApplied) {
+      dynamicList.unshift({
+        id: "ALERT_CLOSED_LOOP",
+        severity: "WATCH",
+        category: "CROWD",
+        title: "Closed-loop redistribution active",
+        message: "Attendee choice diverted ~1,200 visitors to Dadar. Churchgate pressure reduced 94% → 76%.",
+        resourceId: "CHURCHGATE",
+        timestamp: "JUST NOW",
+      });
+    }
+
+    // If any partner hotel reported tight inventory (< 25 rooms in Zone C or < 10 in Zone A)
+    const tightHotels = hotels.filter(h => h.source === "PARTNER_REPORTED" && h.availableRooms <= 20);
+    tightHotels.forEach(h => {
+      dynamicList.unshift({
+        id: `ALERT_HOTEL_${h.id}`,
+        severity: h.availableRooms <= 10 ? "HIGH" : "WATCH",
+        category: "ACCOMMODATION",
+        title: `${h.name} inventory low`,
+        message: `Partner reported ${h.availableRooms} rooms available (${h.usableRooms} usable). Accommodation pressure at ${h.pressure}%.`,
+        actionLabel: "View Stay",
+        actionRoute: "/attendee/stay",
+        timestamp: "JUST NOW",
+      });
+    });
+
+    return dynamicList;
+  }, [activeScenario, redistributionApplied, hotels]);
+
+  // Initialize Default Hardware Devices into Registry (Runs once)
+  useEffect(() => {
+    sensorStreamSimulator.initializeDefaultDevices();
+  }, []);
+
+  // Update simulator scenario when activeScenario changes
+  useEffect(() => {
+    sensorStreamSimulator.setConfig({ scenarioId: activeScenario });
+  }, [activeScenario]);
+
+  // Registered Devices
+  const devices = useMemo(() => {
+    return deviceRegistry.getAll();
+  }, [latestObservations]);
+
+  // Detected Spatial Hotspots
+  const hotspots = useMemo(() => {
+    return hotspotAndCascadeEngine.detectHotspots(zones);
+  }, [zones]);
+
+  // Forward Cascade Spillover Analysis
+  const cascadeResult = useMemo(() => {
+    const originZone = zones.find(z => z.id === "ZONE_WANKHEDE");
+    const originPressure = originZone ? originZone.pressure : 85;
+    return hotspotAndCascadeEngine.analyzeCascade("ZONE_WANKHEDE", originPressure, resources);
+  }, [zones, resources]);
+
+  // Generated Operational Interventions
+  const interventions = useMemo(() => {
+    return recommendationLifecycleEngine.generateInterventions(zones);
+  }, [zones]);
+
+  const auditRecords = useMemo(() => {
+    return recommendationLifecycleEngine.getAuditTrail();
+  }, [recommendations]);
+
   return (
     <AppContext.Provider value={{
       activeScenario, setScenario,
       recommendations, approveRecommendation, rejectRecommendation, isRecommendationApproved,
       attendeeSelectedRouteId, selectAttendeeRoute,
       hasAttendeeRecommendation, attendeeRecommendationMessage,
-      redistributionApplied,
+      redistributionApplied, redistributionImpact,
+      hotels, hotelOverrides, updateHotelAvailability, resetHotels,
+      resources, kpis, alerts,
+      simulationState, playSimulation, pauseSimulation, resetSimulation, setSimulationSpeed,
+      simParams, updateSimParams,
+      zones, getZoneState,
+      devices, latestObservations, hotspots, cascadeResult, interventions, auditRecords,
     }}>
       {children}
     </AppContext.Provider>

@@ -154,3 +154,745 @@
 .poiBadge:hover {
   transform: scale(1.1);
 }
+=======
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--white);
+  border-bottom: 1px solid var(--neutral);
+  z-index: 10;
+}
+
+.layerBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-radius: var(--radius-pill);
+  background: var(--paper);
+  border: 1.5px solid var(--neutral);
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: all var(--t-fast);
+  user-select: none;
+}
+
+.layerBtn:hover {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.layerActive {
+  background: var(--ink) !important;
+  color: var(--white) !important;
+  border-color: var(--ink) !important;
+}
+
+.layerDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.leafletWrapper {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+  background: #0f172a;
+}
+
+.mapContainer {
+  width: 100%;
+  height: 100%;
+  min-height: 380px;
+  z-index: 1;
+  background: #0f172a;
+}
+
+.mapLoading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 380px;
+  gap: 12px;
+  background: #0f172a;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* Dark Leaflet Controls for Dark Map Theme */
+.mapContainer :global(.leaflet-control-attribution) {
+  background: rgba(15, 23, 42, 0.8) !important;
+  color: #94a3b8 !important;
+  font-size: 9px !important;
+  padding: 2px 6px !important;
+  border-radius: 4px 0 0 0 !important;
+}
+
+.mapContainer :global(.leaflet-control-attribution a) {
+  color: #cbd5e1 !important;
+}
+
+.mapContainer :global(.leaflet-control-zoom) {
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-radius: 4px !important;
+  overflow: hidden !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4) !important;
+}
+
+.mapContainer :global(.leaflet-control-zoom a) {
+  background: #1e293b !important;
+  color: #f1f5f9 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.mapContainer :global(.leaflet-control-zoom a:hover) {
+  background: #334155 !important;
+  color: #ffffff !important;
+}
+
+/* Custom Marker Styling (divIcon) */
+.leafletCustomIcon {
+  background: transparent !important;
+  border: none !important;
+}
+
+.venueMarker,
+.transportMarker,
+.hotelMarker,
+.restaurantMarker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  transform: translate3d(0, 0, 0);
+  transition: transform 0.15s ease;
+}
+
+.venueMarker:hover,
+.transportMarker:hover,
+.hotelMarker:hover,
+.restaurantMarker:hover {
+  transform: scale(1.12);
+  z-index: 9999 !important;
+}
+
+.markerBadge,
+.hotelBadge,
+.restaurantBadge {
+  display: inline-flex;
+  align-items: center;
+  background: #ffffff;
+  border: 2px solid var(--marker-color, #111111);
+  border-radius: var(--radius-pill);
+  padding: 2px 6px 2px 5px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22);
+  gap: 4px;
+}
+
+.markerIcon,
+.hotelIcon,
+.restaurantIcon {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.markerPressure,
+.hotelRooms,
+.restaurantWait {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 4px;
+  line-height: 1.1;
+  letter-spacing: 0.02em;
+}
+
+.markerLabel,
+.hotelLabel,
+.restaurantLabel {
+  margin-top: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #ffffff;
+  background: rgba(17, 17, 17, 0.88);
+  padding: 1px 5px;
+  border-radius: 3px;
+  white-space: nowrap;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  text-transform: uppercase;
+}
+
+.markerSelected .markerBadge {
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.4), 0 3px 10px rgba(0, 0, 0, 0.3);
+  animation: markerSelectedPulse 1.5s infinite alternate;
+}
+
+@keyframes markerSelectedPulse {
+  from {
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.4), 0 3px 10px rgba(0, 0, 0, 0.3);
+  }
+
+  to {
+    box-shadow: 0 0 0 5px rgba(37, 99, 235, 0.7), 0 3px 12px rgba(0, 0, 0, 0.4);
+  }
+}
+
+/* Custom Popup Overrides */
+.customPopup :global(.leaflet-popup-content-wrapper) {
+  background: #ffffff;
+  color: #111111;
+  border-radius: var(--radius-md);
+  padding: 0;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  border: 1px solid var(--neutral);
+}
+
+.customPopup :global(.leaflet-popup-content) {
+  margin: 0;
+  line-height: 1.4;
+}
+
+.customPopup :global(.leaflet-popup-tip) {
+  background: #ffffff;
+}
+
+.popupContent {
+  padding: 12px 14px;
+  font-family: inherit;
+  min-width: 190px;
+}
+
+.popupHeader {
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--paper-dark);
+  padding-bottom: 6px;
+}
+
+.popupType {
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--ink-muted);
+  text-transform: uppercase;
+  display: block;
+}
+
+.popupTitle {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 2px 0 0 0;
+}
+
+.popupZone {
+  font-size: 10px;
+  color: var(--ink-light);
+}
+
+.popupBody {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.popupRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: var(--ink-muted);
+}
+
+.popupRow strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.popupFooter {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--paper-dark);
+}
+
+.popupBtn {
+  width: 100%;
+  padding: 5px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: var(--ink);
+  color: var(--white);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: opacity var(--t-fast);
+}
+
+.popupBtn:hover {
+  opacity: 0.88;
+}
+
+/* Animations for Halos and Hotspots */
+:global(.leaflet-pulsing-halo) {
+  animation: haloPulse 2.8s ease-in-out infinite;
+}
+
+@keyframes haloPulse {
+
+  0%,
+  100% {
+    opacity: 0.4;
+    stroke-width: 1.5;
+  }
+
+  50% {
+    opacity: 0.95;
+    stroke-width: 3.5;
+  }
+}
+
+:global(.leaflet-hotspot-ring) {
+  animation: hotspotPulse 1.8s ease-in-out infinite;
+}
+
+@keyframes hotspotPulse {
+
+  0%,
+  100% {
+    opacity: 0.5;
+    stroke-width: 2;
+  }
+
+  50% {
+    opacity: 1;
+    stroke-width: 4;
+  }
+}
+
+/* SIMULATION CONTROL BAR OVERLAY */
+.simBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 14px;
+  background: #111111;
+  color: #ffffff;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  z-index: 10;
+  font-size: 11px;
+}
+
+.simBarLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.simClockIcon {
+  font-size: 14px;
+}
+
+.simClockTime {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #fbbf24;
+}
+
+.simStatusPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.simRunning {
+  background: rgba(16, 185, 129, 0.25);
+  color: #34d399;
+  border: 1px solid rgba(52, 211, 153, 0.4);
+}
+
+.simPaused {
+  background: rgba(245, 158, 11, 0.25);
+  color: #fbbf24;
+  border: 1px solid rgba(251, 191, 36, 0.4);
+}
+
+.simIdle {
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.simElapsed {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 600;
+}
+
+.simBarRight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.simControlBtn {
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  transition: all var(--t-fast);
+}
+
+.simControlBtn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.simPlayBtn {
+  background: var(--yellow) !important;
+  color: #111111 !important;
+  border-color: var(--yellow) !important;
+}
+
+.simSpeedGroup {
+  display: flex;
+  gap: 2px;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 2px;
+  border-radius: var(--radius-pill);
+}
+
+.simSpeedBtn {
+  padding: 1px 6px;
+  font-size: 9px;
+  font-weight: 700;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.6);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+}
+
+.simSpeedActive {
+  background: #ffffff !important;
+  color: #111111 !important;
+}
+
+/* OPERATIONAL NODE CARD (Major Destination Hubs) */
+.opNodeCard {
+  background: #ffffff;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--node-accent, #111111);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+  padding: 5px 8px;
+  min-width: 146px;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  user-select: none;
+}
+
+.opNodeCard:hover {
+  transform: scale(1.06);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.28);
+  z-index: 9999 !important;
+}
+
+.opNodeCardSelected {
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.35), 0 4px 14px rgba(0, 0, 0, 0.25);
+}
+
+.opNodeHeader {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 3px;
+}
+
+.opNodeIcon {
+  font-size: 11px;
+}
+
+.opNodeTitle {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--ink);
+  letter-spacing: 0.02em;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.opNodeSimTag {
+  font-size: 7px;
+  font-weight: 800;
+  background: #111111;
+  color: #fbbf24;
+  padding: 1px 4px;
+  border-radius: 2px;
+  letter-spacing: 0.04em;
+}
+
+.opNodeBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.opNodePressureRow {
+  display: flex;
+  align-items: center;
+}
+
+.opNodePressureBadge {
+  font-size: 8.5px;
+  font-weight: 800;
+  padding: 1px 5px;
+  border-radius: 3px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.opNodeMetricsRow {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 9px;
+  color: var(--ink-muted);
+  font-weight: 600;
+}
+
+.opNodeLoad {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.opNodeSep {
+  color: var(--neutral);
+}
+
+.opNodeCap {
+  color: var(--ink-light);
+}
+
+/* FLOW LINE ANIMATION & COHORT PARTICLES */
+:global(.leaflet-animated-flow-line) {
+  animation: flowDashAnim 1.4s linear infinite;
+}
+
+@keyframes flowDashAnim {
+  from {
+    stroke-dashoffset: 28;
+  }
+
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+:global(.leaflet-cohort-pulse) {
+  animation: cohortPulseAnim 2.2s ease-in-out infinite;
+}
+
+@keyframes cohortPulseAnim {
+
+  0%,
+  100% {
+    opacity: 0.65;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+/* FLOATING MAP LEGEND OVERLAY */
+.legendOverlay {
+  position: absolute;
+  bottom: 60px;
+  left: 12px;
+  z-index: 10;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--neutral);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  font-size: 10px;
+  max-width: 220px;
+  user-select: none;
+  transition: all var(--t-fast);
+}
+
+.legendHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--paper-dark);
+}
+
+.legendTitle {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.legendSimPill {
+  font-size: 7.5px;
+  font-weight: 800;
+  background: #111111;
+  color: #fbbf24;
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+
+.legendGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.legendCol {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.legendItemTitle {
+  font-size: 8px;
+  font-weight: 700;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 1px;
+}
+
+.legendItemRow {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 9px;
+  color: var(--ink-muted);
+}
+
+.legendSwatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.legendLineSwatch {
+  width: 14px;
+  height: 3px;
+  border-radius: 1px;
+  flex-shrink: 0;
+}
+
+/* BOTTOM SIMULATION TELEMETRY STRIP */
+.telemetryStrip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 14px;
+  background: #0f172a;
+  color: #ffffff;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  z-index: 10;
+  flex-wrap: wrap;
+}
+
+.telemetryGrid {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.telemetryTile {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.telemetryLabel {
+  font-size: 8.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #94a3b8;
+}
+
+.telemetryValue {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: 0.02em;
+}
+
+.telemetryBadgeWrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.telemetryEnvBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(251, 191, 36, 0.15);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  color: #fbbf24;
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+  text-transform: uppercase;
+}
+
+.telemetryConservedPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(16, 185, 129, 0.2);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  color: #34d399;
+  font-size: 8.5px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: var(--radius-pill);
+}
+>>>>>>> a67d91c374660066b45cac95f146df1c2a2dfb62

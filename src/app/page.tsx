@@ -1,7 +1,14 @@
+"use client";
+
+import React from "react";
 import Link from "next/link";
+import Image from "next/image";
+import { useUser, UserButton } from "@clerk/nextjs";
 import styles from "./landing.module.css";
 
 export default function LandingPage() {
+  const { isSignedIn, isLoaded } = useUser();
+
   return (
     <main className={styles.page}>
       {/* NAV */}
@@ -10,84 +17,119 @@ export default function LandingPage() {
           <span className={styles.navLogo}>JUNCTION</span>
         </div>
         <div className={styles.navLinks}>
-          <a href="#platform" className={styles.navLink}>Platform</a>
-          <a href="#solution" className={styles.navLink}>Solution</a>
-          <a href="#about" className={styles.navLink}>About</a>
+          <a href="#solution" className={styles.navLink}>SOLUTION</a>
+          <a href="#platform" className={styles.navLink}>PLATFORM</a>
+          <a href="#about" className={styles.navLink}>ABOUT</a>
         </div>
-        <Link href="/organizer" className={`btn btn-primary ${styles.navCta}`}>
-          ENTER
-        </Link>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, minHeight: 38 }}>
+          {isLoaded && isSignedIn ? (
+            <>
+              <Link href="/organizer" className={`btn btn-primary ${styles.navCta}`}>
+                OPEN COMMAND CENTER →
+              </Link>
+              <UserButton
+                appearance={{
+                  elements: {
+                    userButtonAvatarBox: {
+                      width: 34,
+                      height: 34,
+                      border: "2px solid #F5C400",
+                      borderRadius: "4px",
+                    },
+                  },
+                }}
+              />
+            </>
+          ) : (
+            <>
+              <Link href="/login" className="btn btn-outline btn-sm" style={{ fontWeight: 700, letterSpacing: "0.04em", padding: "7px 14px" }}>
+                SIGN IN
+              </Link>
+              <Link href="/sign-up" className={`btn btn-primary ${styles.navCta}`}>
+                SIGN UP →
+              </Link>
+            </>
+          )}
+        </div>
       </nav>
 
-      {/* HERO — SPLIT SCREEN */}
+      {/* HERO — ONE EDITORIAL CANVAS */}
       <section className={styles.hero}>
-        {/* LEFT — COPY */}
-        <div className={styles.heroLeft}>
-          <div className={styles.heroEyebrow}>
-            <span className="pill pill-simulated">● Simulated Environment</span>
-            <span className={styles.eyebrowText}>Mumbai · IPL Season 2026</span>
+        {/* Top sweeping yellow curve background SVG */}
+        <svg className={styles.topCurve} viewBox="0 0 1440 220" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M -20 100 C 180 230, 480 160, 680 0" stroke="#F5C400" strokeWidth="2.5" opacity="0.85" />
+        </svg>
+
+        <div className={styles.heroCanvas}>
+          {/* LEFT: illustration — crisp & unmasked, occupying left side */}
+          <div className={styles.heroArt} aria-hidden="true">
+            <Image
+              src="/junction_hero.png"
+              alt=""
+              fill
+              priority
+              sizes="54vw"
+              className={styles.heroArtImg}
+            />
           </div>
 
-          <h1 className={styles.heroHeadline}>
-            <span className={styles.heroLine1}>ORCHESTRATING</span>
-            <span className={styles.heroLine2}>EVERY</span>
-            <span className={styles.heroLine3}>JOURNEY.</span>
-          </h1>
-
-          <p className={styles.heroTagline}>
-            JUNCTION — Orchestrating Every Journey
-          </p>
-
-          <p className={styles.heroCopy}>
-            Predict the demand wave. Find where capacity will break.
-            Simulate what can be done. Help people make better choices
-            before bottlenecks occur.
-          </p>
-
-          <div className={styles.heroCtas}>
-            <Link href="/organizer" className={`btn btn-yellow btn-lg ${styles.ctaPrimary}`}>
-              ENTER JUNCTION
-            </Link>
-            <Link href="#solution" className={`btn btn-outline btn-lg`}>
-              SEE HOW IT WORKS
-            </Link>
-          </div>
-
-          <div className={styles.heroStats}>
-            <div className={styles.heroStat}>
-              <span className={styles.heroStatValue}>33,000</span>
-              <span className={styles.heroStatLabel}>Expected attendees</span>
+          {/* RIGHT: brand typography — in natural negative space, never overlapping art */}
+          <div className={styles.heroCopy}>
+            <div className={styles.eyebrow}>
+              <span className={styles.eyebrowPill}>
+                <span className={styles.eyebrowDot} />
+                SIMULATED ENVIRONMENT
+              </span>
+              <span className={styles.eyebrowRule} />
+              <span className={styles.eyebrowMeta}>MUMBAI · IPL SEASON 2026</span>
             </div>
-            <div className={styles.heroStatDivider} />
-            <div className={styles.heroStat}>
-              <span className={styles.heroStatValue}>12+</span>
-              <span className={styles.heroStatLabel}>Destination zones</span>
-            </div>
-            <div className={styles.heroStatDivider} />
-            <div className={styles.heroStat}>
-              <span className={styles.heroStatValue}>94%</span>
-              <span className={styles.heroStatLabel}>Peak pressure predicted</span>
-            </div>
-          </div>
-        </div>
 
-        {/* RIGHT — DESTINATION INTELLIGENCE VIZ */}
-        <div className={styles.heroRight}>
-          <DestinationViz />
-          <div className={styles.vizLabel}>
-            <span className="simulated-env-label">
-              <span className="simulated-dot" />
-              Simulated Environment
-            </span>
+            <h1 className={styles.heroTitle}>JUNCTION</h1>
+
+            <h2 className={styles.heroTagline}>
+              Orchestrating Every Journey<span className={styles.taglineDot}>.</span>
+            </h2>
+
+            <p className={styles.heroBody}>
+              Every event creates thousands of journeys.<br />
+              JUNCTION helps bring them together.
+            </p>
+
+            <div className={styles.heroCtas}>
+              {isLoaded && isSignedIn ? (
+                <Link href="/organizer" className={styles.ctaPrimary}>
+                  ENTER OPERATIONS →
+                </Link>
+              ) : (
+                <Link href="/login" className={styles.ctaPrimary}>
+                  ENTER JUNCTION →
+                </Link>
+              )}
+              <Link href="#solution" className={styles.ctaSecondary}>
+                SEE HOW IT WORKS
+              </Link>
+            </div>
+
+            <div className={styles.heroFooter}>
+              <span className={styles.footerRule} />
+              <span className={styles.footerMeta}>A MORE CONNECTED TOMORROW</span>
+              <span className={styles.footerDots}>
+                <span className={styles.footerDot} />
+                <span className={styles.footerDot} />
+                <span className={styles.footerDot} />
+              </span>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* CORE LOOP — HOW IT WORKS */}
+      {/* HOW IT WORKS */}
       <section className={styles.howSection} id="solution">
         <div className={styles.howHeader}>
-          <span className="text-meta">The Core Loop</span>
-          <h2 className="text-section-heading">The event is the trigger.<br />The destination is the system.</h2>
+          <span className={styles.howEyebrow}>THE CORE LOOP</span>
+          <h2 className={styles.howHeading}>
+            The event is the trigger.<br />The destination is the system.
+          </h2>
         </div>
         <div className={styles.loopGrid}>
           {[
@@ -96,7 +138,7 @@ export default function LandingPage() {
             { step: "03", label: "SIMULATE", desc: "Run what-if scenarios before pressure becomes a problem." },
             { step: "04", label: "RECOMMEND", desc: "Explainable, structured recommendations with expected impact." },
             { step: "05", label: "DECIDE", desc: "Organizers approve or reject. AI never acts autonomously." },
-            { step: "06", label: "GUIDE", desc: "Attendees receive personalized route, stay, and timing guidance." },
+            { step: "06", label: "GUIDE", desc: "Attendees receive personalised route, stay, and timing guidance." },
           ].map((item) => (
             <div key={item.step} className={styles.loopCard}>
               <span className={styles.loopStep}>{item.step}</span>
@@ -110,20 +152,22 @@ export default function LandingPage() {
       {/* THREE PORTALS */}
       <section className={styles.portalsSection} id="platform">
         <div className={styles.portalsHeader}>
-          <span className="text-meta">Three Interfaces. One Platform.</span>
-          <h2 className="text-section-heading">Built for every stakeholder.</h2>
+          <span className={styles.portalsEyebrow}>THREE INTERFACES. ONE PLATFORM.</span>
+          <h2 className={styles.portalsHeading}>Built for every stakeholder.</h2>
         </div>
         <div className={styles.portalsGrid}>
           <Link href="/organizer" className={styles.portalCard}>
             <div className={styles.portalIcon}>⌘</div>
             <h3 className={styles.portalTitle}>Organizer Command Center</h3>
             <p className={styles.portalDesc}>Destination map, pressure analytics, cascade tracing, what-if simulation, and recommendation approval.</p>
-            <span className={styles.portalCta}>Open Dashboard →</span>
+            <span className={styles.portalCta}>
+              {isLoaded && isSignedIn ? "Open Command Center →" : "Sign In to Access →"}
+            </span>
           </Link>
           <Link href="/attendee" className={styles.portalCard}>
             <div className={styles.portalIcon}>◎</div>
             <h3 className={styles.portalTitle}>Attendee Journey Platform</h3>
-            <p className={styles.portalDesc}>Personalized route planning, accommodation recommendations, real-time alerts, food & services guidance.</p>
+            <p className={styles.portalDesc}>Personalised route planning, accommodation recommendations, real-time alerts, food &amp; services guidance.</p>
             <span className={styles.portalCta}>Open Platform →</span>
           </Link>
           <div className={styles.portalCard} style={{ background: '#FFFEEA', borderColor: '#F5C400' }}>
@@ -152,6 +196,14 @@ export default function LandingPage() {
               </div>
             </div>
           </div>
+          <Link href="/partner" className={styles.portalCard}>
+            <div className={styles.portalIcon}>◈</div>
+            <h3 className={styles.portalTitle}>Partner Portal</h3>
+            <p className={styles.portalDesc}>Hotels, restaurants, and service operators update availability and receive event demand signals.</p>
+            <span className={styles.portalCta}>
+              Open Partner Portal →
+            </span>
+          </Link>
         </div>
       </section>
 
@@ -161,12 +213,12 @@ export default function LandingPage() {
           <span className={styles.footerLogo}>JUNCTION</span>
           <span className={styles.footerTagline}>Orchestrating Every Journey</span>
         </div>
-        <div className={styles.footerMeta}>
+        <div className={styles.footerRight}>
           <span className="simulated-env-label tooltip-simulated">
             <span className="simulated-dot" />
             Simulated Environment · Prototype
           </span>
-          <span className={styles.footerRight}>Mumbai · IPL Season 2026 · All data simulated</span>
+          <span className={styles.footerSmall}>Mumbai · IPL Season 2026 · All data simulated</span>
         </div>
       </footer>
     </main>

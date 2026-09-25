@@ -1,5 +1,5 @@
 // ============================================================
-// JUNCTION — Core Type Definitions
+// JUNCTION - Core Type Definitions
 // ============================================================
 
 export type ScenarioId =
@@ -32,14 +32,38 @@ export interface JunctionEvent {
   gates: { id: string; label: string; capacity: number }[];
 }
 
+export interface GeoLocation {
+  latitude: number;
+  longitude: number;
+}
+
+export * from "./zone";
+export * from "./transport";
+export * from "./device";
+export * from "./observation";
+export * from "./computerVision";
+export * from "./hospitality";
+export * from "./forecast";
+export * from "./recommendation";
+export * from "./audit";
+export * from "./resource";
+export * from "./cctv";
+
 export interface Zone {
-  id: string; name: string; pressure: number; predictedPressure: number;
-  availableCapacity: number; resources: string[];
+  id: string;
+  name: string;
+  tier?: import("./zone").ZoneTier;
+  pressure: number;
+  predictedPressure: number;
+  availableCapacity: number;
+  resources: string[];
 }
 
 export interface Resource {
   id: string; type: ResourceType; name: string; shortName: string;
-  zone: string; mapPos: { x: number; y: number };
+  zone: string;
+  location: GeoLocation;
+  mapPos?: { x: number; y: number };
   totalCapacity: number; currentUtilization: number;
   availableCapacity: number; predictedDemand: number;
   operatingStatus: OperatingStatus; pressure: number;
@@ -49,7 +73,9 @@ export interface Resource {
 }
 
 export interface Hotel {
-  id: string; name: string; zone: string; totalRooms: number;
+  id: string; name: string; zone: string;
+  location: GeoLocation;
+  totalRooms: number;
   availableRooms: number; usableRooms: number;
   expectedCheckIns: number; expectedCheckOuts: number;
   travelTimeToVenue: number; pressure: number;
@@ -61,11 +87,49 @@ export interface Hotel {
 
 export interface Restaurant {
   id: string; name: string; cuisine: string; zone: string;
+  location: GeoLocation;
   capacity: number; currentOccupancy: number; availableTables: number;
   waitTime: number; predictedWaitTime: number;
   distanceFromVenue: number; pressure: number;
   pressureLevel: PressureLevel; source: ConfidenceSource;
   hasIncentive: boolean; incentiveLabel?: string; recommended?: boolean;
+}
+
+export interface RoadEdge {
+  id: string;
+  name: string;
+  fromId: string;
+  toId: string;
+  geometry: GeoLocation[];
+  distanceKm?: number;
+  capacity?: number;
+  travelTimeMin?: number;
+  congestion: number;
+  status: 'NORMAL' | 'HEAVY' | 'CONGESTED' | 'DISRUPTED';
+}
+
+export interface CrowdFlow {
+  id: string;
+  fromId: string;
+  toId: string;
+  fromCoord: GeoLocation;
+  toCoord: GeoLocation;
+  direction: 'INBOUND' | 'OUTBOUND';
+  volume: number;
+  pressure: number;
+  corridorName: string;
+}
+
+export interface PredictedHotspot {
+  id: string;
+  resourceId: string;
+  name: string;
+  location: GeoLocation;
+  currentPressure: number;
+  predictedPressure: number;
+  severity: 'WATCH' | 'HIGH' | 'CRITICAL';
+  projectedTimeframe: string;
+  radiusMeters: number;
 }
 
 export interface TransportRoute {
@@ -131,6 +195,43 @@ export interface SimulationResult {
   recommendations: string[]; summary: string;
 }
 
+export type SimulationStatus = 'IDLE' | 'PLAYING' | 'PAUSED';
+export type SimulationSpeed = 1 | 5 | 10;
+
+export interface HumanCohort {
+  id: string;
+  originId: string;
+  destinationId: string;
+  path: string[];
+  volume: number;
+  currentSegmentIndex: number;
+  progress: number; // 0.0 to 1.0 along current segment
+  speedMps: number;
+  status: 'MOVING' | 'ARRIVED';
+}
+
+export interface DensityCell {
+  id: string;
+  location: GeoLocation;
+  radiusMeters: number;
+  density: number;
+  capacity: number;
+  pressure: number;
+}
+
+export interface SimulationState {
+  simulationTime: string;
+  minutesElapsed: number;
+  status: SimulationStatus;
+  speed: SimulationSpeed;
+  humanCohorts: HumanCohort[];
+  nodeLoads: Record<string, number>;
+  edgeLoads: Record<string, number>;
+  densityCells: DensityCell[];
+  totalExitedVenue: number;
+  totalCleared: number;
+}
+
 export type RouteType = 'FASTEST' | 'BALANCED' | 'LOW_CROWD';
 
 export interface RouteStep { from: string; to: string; mode: 'RAIL' | 'BUS' | 'WALK' | 'METRO'; duration: number; }
@@ -144,9 +245,29 @@ export interface AttendeeRoute {
   recommended: boolean; steps: RouteStep[]; explanation: string; score: number;
 }
 
+export interface RedistributionImpact {
+  churchgateBefore: number;
+  churchgateAfter: number;
+  dadarBefore: number;
+  dadarAfter: number;
+  wankhedeExitBefore: number;
+  wankhedeExitAfter: number;
+  visitorsRedistributed: number;
+  travelDeltaMin: number;
+}
+
+export interface PartnerHotelUpdate {
+  hotelId: string;
+  availableRooms: number;
+  expectedCheckIns?: number;
+  expectedCheckOuts?: number;
+  lastUpdated: string;
+}
+
 export interface AppState {
   activeScenario: ScenarioId;
   approvedRecommendations: string[];
   attendeeSelectedRouteId: string | null;
   attendeeRouteChoiceAffectsState: boolean;
 }
+
