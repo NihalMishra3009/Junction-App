@@ -17,25 +17,17 @@ class EventScreen extends StatelessWidget {
 
   const EventScreen({super.key, required this.appState});
 
-  Future<void> _makePhoneCall(String phoneNumber, BuildContext context) async {
-    final Uri launchUri = Uri(
-      scheme: 'tel',
-      path: phoneNumber,
-    );
+  Future<void> _makePhoneCall(String phoneNumber) async {
+    final cleanNumber = phoneNumber.replaceAll(RegExp(r'[^\d+]'), '');
+    final Uri launchUri = Uri(scheme: 'tel', path: cleanNumber);
     try {
-      final launched = await launchUrl(launchUri, mode: LaunchMode.externalApplication);
-      if (!launched) {
+      if (await canLaunchUrl(launchUri)) {
         await launchUrl(launchUri);
+      } else {
+        await launchUrl(launchUri, mode: LaunchMode.externalApplication);
       }
     } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Calling $phoneNumber..."),
-            backgroundColor: AppTheme.ink,
-          ),
-        );
-      }
+      debugPrint('Could not launch phone call to $cleanNumber: $e');
     }
   }
 
@@ -320,20 +312,17 @@ class EventScreen extends StatelessWidget {
                 ),
               ],
             ),
-          )
-              .animate()
-              .fadeIn(duration: 350.ms, delay: 150.ms)
-              .slideY(begin: 0.08, end: 0, curve: Curves.easeOutCubic),
-
+          ),
           const SizedBox(height: 20),
 
-          // Emergency Help Section
+          // EMERGENCY CONTACT (Compact Section)
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: AppTheme.redBg,
+              color: AppTheme.white,
               borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-              border: Border.all(color: AppTheme.red.withValues(alpha: 0.3), width: 1.2),
+              border: Border.all(color: AppTheme.neutral, width: 1.0),
+              boxShadow: AppTheme.shadowSm,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -342,182 +331,90 @@ class EventScreen extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      "EMERGENCY & SUPPORT",
+                      "EMERGENCY CONTACT",
                       style: AppTheme.displayFont(
-                        fontSize: 12,
+                        fontSize: 13,
                         fontWeight: FontWeight.w800,
-                        letterSpacing: 0.4,
-                        color: AppTheme.red,
+                        letterSpacing: 0.3,
                       ),
                     ),
-                    const PillBadge(
-                      text: "24/7 HELPLINE",
-                      variant: PillVariant.critical,
-                      fontSize: 9,
-                    ),
+                    const Icon(Icons.phone_in_talk, size: 18, color: AppTheme.red),
                   ],
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 4),
                 Text(
-                  "Direct emergency contact lines for venue security, medical first responders, and local authorities.",
-                  style: AppTheme.bodyFont(
-                    fontSize: 12,
-                    color: AppTheme.inkLight,
-                    height: 1.3,
-                  ),
+                  "Need immediate assistance?",
+                  style: AppTheme.bodyFont(fontSize: 12, color: AppTheme.inkMuted),
                 ),
                 const SizedBox(height: 14),
-                _buildEmergencyButton(
-                  context: context,
-                  label: "POLICE (112 / 100)",
-                  number: "112",
-                  icon: Icons.local_police,
-                ),
-                const SizedBox(height: 8),
-                _buildEmergencyButton(
-                  context: context,
-                  label: "FIRE & RESCUE (101)",
-                  number: "101",
-                  icon: Icons.local_fire_department,
-                ),
-                const SizedBox(height: 8),
-                _buildEmergencyButton(
-                  context: context,
-                  label: "AMBULANCE & MEDICAL (102)",
-                  number: "102",
-                  icon: Icons.medical_services,
-                ),
+
+                _buildEmergencyRow("Security / Emergency", "112", Icons.local_police),
+                const Divider(height: 16, color: AppTheme.neutral),
+                _buildEmergencyRow("Medical Assistance", "102", Icons.medical_services),
+                const Divider(height: 16, color: AppTheme.neutral),
+                _buildEmergencyRow("Event Help Desk", "+91 22 2279 5500", Icons.support_agent),
               ],
             ),
           )
               .animate()
               .fadeIn(duration: 350.ms, delay: 200.ms)
               .slideY(begin: 0.08, end: 0, curve: Curves.easeOutCubic),
-
-          const SizedBox(height: 20),
-
-          // Venue Guidelines
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: AppTheme.white,
-              borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-              border: Border.all(color: AppTheme.neutral, width: 1.0),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  "VENUE POLICIES",
-                  style: AppTheme.metaText(fontSize: 11, color: AppTheme.inkMuted),
-                ),
-                const SizedBox(height: 12),
-                _buildPolicyItem(Icons.shopping_bag_outlined, "Bag Policy", "Only small handbags (under 30x30cm) permitted."),
-                const SizedBox(height: 8),
-                _buildPolicyItem(Icons.water_drop_outlined, "Water Bottles", "Sealed clear bottles allowed; refills inside."),
-                const SizedBox(height: 8),
-                _buildPolicyItem(Icons.confirmation_number_outlined, "Return Rail Pass", "Pre-purchase return transit tickets to avoid queues."),
-              ],
-            ),
-          )
-              .animate()
-              .fadeIn(duration: 350.ms, delay: 250.ms)
-              .slideY(begin: 0.08, end: 0, curve: Curves.easeOutCubic),
-
-          const SizedBox(height: 20),
         ],
       ),
     );
   }
 
-  Widget _buildEmergencyButton({
-    required BuildContext context,
-    required String label,
-    required String number,
-    required IconData icon,
-  }) {
+  Widget _buildEmergencyRow(String label, String contact, IconData icon) {
     return MotionTap(
-      onTap: () => _makePhoneCall(number, context),
+      onTap: () => _makePhoneCall(contact),
       scaleDown: 0.96,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: AppTheme.white,
-          borderRadius: BorderRadius.circular(AppTheme.radiusSm),
-          border: Border.all(color: AppTheme.red.withValues(alpha: 0.4)),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, size: 18, color: AppTheme.red),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                label,
-                style: AppTheme.displayFont(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: AppTheme.ink,
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: AppTheme.inkMuted),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: AppTheme.displayFont(fontSize: 12, fontWeight: FontWeight.w700),
+                  overflow: TextOverflow.ellipsis,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppTheme.red,
-                borderRadius: BorderRadius.circular(AppTheme.radiusSm),
-              ),
-              child: const Text(
-                "CALL",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 11,
+                Text(
+                  contact,
+                  style: AppTheme.bodyFont(fontSize: 11, color: AppTheme.inkMuted),
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
+              ],
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPolicyItem(IconData icon, String title, String desc) {
-    return MotionTap(
-      onTap: () {},
-      scaleDown: 0.98,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(5),
-              decoration: BoxDecoration(
-                color: AppTheme.paperDark,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, size: 14, color: AppTheme.ink),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: RichText(
-                text: TextSpan(
-                  style: AppTheme.bodyFont(fontSize: 12, color: AppTheme.inkLight),
-                  children: [
-                    TextSpan(
-                      text: "$title: ",
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    TextSpan(text: desc),
-                  ],
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppTheme.yellow,
+              borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+              boxShadow: [
+                BoxShadow(
+                  color: AppTheme.yellow.withValues(alpha: 0.3),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
                 ),
-              ),
+              ],
             ),
-          ],
-        ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.phone, size: 12, color: AppTheme.ink),
+                const SizedBox(width: 4),
+                Text(
+                  label.contains("Help") ? "Contact" : "Call",
+                  style: AppTheme.displayFont(fontSize: 11, fontWeight: FontWeight.w800),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

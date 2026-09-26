@@ -22,7 +22,9 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _navigateToNext();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _navigateToNext();
+    });
   }
 
   void _navigateToNext() async {

@@ -7,7 +7,6 @@ import 'destination_route_screen.dart';
 import '../services/maps_launcher.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
-import '../widgets/pill_badge.dart';
 import '../widgets/motion_tap.dart';
 
 class FoodScreen extends StatefulWidget {
@@ -20,8 +19,8 @@ class FoodScreen extends StatefulWidget {
 }
 
 class _FoodScreenState extends State<FoodScreen> {
-  final String _selectedZone = "ALL";
-  final bool _onlyDeals = false;
+  String _searchQuery = "";
+  String _sortBy = "RATING"; // RATING, DISTANCE, WAIT_TIME
 
   Color _waitColor(int waitTime) {
     if (waitTime > 30) return AppTheme.red;
@@ -40,16 +39,21 @@ class _FoodScreenState extends State<FoodScreen> {
 
   @override
   Widget build(BuildContext context) {
-    var restaurants = [...widget.appState.restaurants];
+    var restaurants = widget.appState.restaurants.where((r) {
+      if (_searchQuery.isEmpty) return true;
+      final q = _searchQuery.toLowerCase();
+      return r.name.toLowerCase().contains(q) ||
+          r.cuisine.toLowerCase().contains(q) ||
+          r.address.toLowerCase().contains(q);
+    }).toList();
 
-    if (_selectedZone != "ALL") {
-      restaurants = restaurants.where((r) => r.zone == _selectedZone).toList();
+    if (_sortBy == "RATING") {
+      restaurants.sort((a, b) => b.rating.compareTo(a.rating));
+    } else if (_sortBy == "DISTANCE") {
+      restaurants.sort((a, b) => a.distanceFromVenue.compareTo(b.distanceFromVenue));
+    } else if (_sortBy == "WAIT_TIME") {
+      restaurants.sort((a, b) => a.waitTime.compareTo(b.waitTime));
     }
-    if (_onlyDeals) {
-      restaurants = restaurants.where((r) => r.hasIncentive).toList();
-    }
-
-    restaurants.sort((a, b) => a.waitTime.compareTo(b.waitTime));
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 140),
@@ -57,39 +61,66 @@ class _FoodScreenState extends State<FoodScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            "LOCAL DINING & SERVICES",
+            "LOCAL DINING",
             style: AppTheme.metaText(fontSize: 12, color: AppTheme.inkMuted),
           ).animate().fadeIn(duration: 250.ms),
           const SizedBox(height: 6),
           Text(
-            "Food & Services",
+            "Restaurants",
             style: AppTheme.displayFont(
               fontSize: 22,
               fontWeight: FontWeight.w700,
               letterSpacing: -0.5,
             ),
           ).animate().fadeIn(duration: 300.ms, delay: 50.ms).slideY(begin: 0.08, end: 0),
-          const SizedBox(height: 4),
-          Text(
-            "Tap any restaurant or café to view live photos, special menus, directions & match offers",
-            style: AppTheme.bodyFont(fontSize: 13, color: AppTheme.inkMuted),
-          ).animate().fadeIn(delay: 100.ms),
           const SizedBox(height: 16),
 
+          // Search Box
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+            decoration: BoxDecoration(
+              color: AppTheme.white,
+              borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+              border: Border.all(color: AppTheme.neutral, width: 1.0),
+              boxShadow: AppTheme.shadowSm,
+            ),
+            child: TextField(
+              onChanged: (val) => setState(() => _searchQuery = val),
+              style: AppTheme.bodyFont(fontSize: 14, color: AppTheme.ink),
+              decoration: const InputDecoration(
+                icon: Icon(Icons.search, size: 20, color: AppTheme.inkMuted),
+                hintText: "Search restaurants by name or cuisine...",
+                border: InputBorder.none,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
 
+          // Filter Pills Row
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _buildFilterChip("RATING", "Top Rated ★", _sortBy == "RATING"),
+                const SizedBox(width: 8),
+                _buildFilterChip("DISTANCE", "Closest to Venue", _sortBy == "DISTANCE"),
+                const SizedBox(width: 8),
+                _buildFilterChip("WAIT_TIME", "Shortest Wait", _sortBy == "WAIT_TIME"),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
 
+          // Header count
+          Text(
+            "ALL RESTAURANTS (${restaurants.length})",
+            style: AppTheme.metaText(fontSize: 11, color: AppTheme.inkMuted),
+          ),
+          const SizedBox(height: 12),
+
+          // Unified Restaurant List
           ...List.generate(restaurants.length, (idx) {
             final r = restaurants[idx];
-            PillVariant variant;
-            if (r.pressureLevel == PressureLevel.CRITICAL) {
-              variant = PillVariant.critical;
-            } else if (r.pressureLevel == PressureLevel.HIGH) {
-              variant = PillVariant.high;
-            } else if (r.pressureLevel == PressureLevel.WATCH) {
-              variant = PillVariant.watch;
-            } else {
-              variant = PillVariant.live;
-            }
 
             return MotionTap(
               onTap: () => _showRestaurantDetailModal(context, r),
@@ -99,10 +130,7 @@ class _FoodScreenState extends State<FoodScreen> {
                 decoration: BoxDecoration(
                   color: AppTheme.white,
                   borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-                  border: Border.all(
-                    color: r.recommended ? AppTheme.yellow : AppTheme.neutral,
-                    width: r.recommended ? 1.5 : 1.0,
-                  ),
+                  border: Border.all(color: AppTheme.neutral, width: 1.0),
                   boxShadow: AppTheme.shadowSm,
                 ),
                 child: ClipRRect(
@@ -110,225 +138,155 @@ class _FoodScreenState extends State<FoodScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Header Thumbnail + Meta
-                      Stack(
-                        children: [
-                          if (r.imageUrl != null)
-                            SizedBox(
-                              height: 120,
-                              width: double.infinity,
-                              child: Image.network(
+                      // RESTAURANT IMAGE (Restored with loading shimmer & error fallback)
+                      SizedBox(
+                        height: 140,
+                        width: double.infinity,
+                        child: (r.imageUrl != null && r.imageUrl!.isNotEmpty)
+                            ? Image.network(
                                 r.imageUrl!,
                                 fit: BoxFit.cover,
-                                errorBuilder: (ctx, err, stack) => Container(
-                                  color: AppTheme.neutral,
-                                  child: const Center(
-                                    child: Icon(Icons.restaurant, color: AppTheme.inkMuted, size: 36),
-                                  ),
-                                ),
-                              ),
-                            )
-                          else
-                            Container(
-                              height: 90,
-                              color: AppTheme.neutral,
-                              child: const Center(
-                                child: Icon(Icons.restaurant, color: AppTheme.inkMuted, size: 36),
-                              ),
-                            ),
-                          // Gradient overlay
-                          Positioned.fill(
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: [
-                                    Colors.black.withValues(alpha: 0.2),
-                                    Colors.black.withValues(alpha: 0.65),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                          // Rating & Badge top row
-                          Positioned(
-                            top: 10,
-                            left: 12,
-                            right: 12,
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withValues(alpha: 0.7),
-                                    borderRadius: BorderRadius.circular(AppTheme.radiusSm),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(Icons.star, color: AppTheme.yellow, size: 14),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        "${r.rating} (${r.reviewsCount}+)",
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w700,
+                                loadingBuilder: (context, child, loadingProgress) {
+                                  if (loadingProgress == null) return child;
+                                  return Container(
+                                    color: AppTheme.paper,
+                                    child: const Center(
+                                      child: SizedBox(
+                                        width: 24,
+                                        height: 24,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: AppTheme.inkFaint,
                                         ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                PillBadge(
-                                  text: r.pressureLevel.name,
-                                  variant: variant,
-                                  fontSize: 9,
-                                ),
-                              ],
-                            ),
-                          ),
-                          // Restaurant Title & Cuisine on Image
-                          Positioned(
-                            bottom: 10,
-                            left: 12,
-                            right: 12,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        r.name,
-                                        style: AppTheme.displayFont(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.w800,
-                                          color: Colors.white,
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
-                                    if (r.recommended)
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: AppTheme.yellow,
-                                          borderRadius: BorderRadius.circular(4),
-                                        ),
-                                        child: Text(
-                                          "FEATURED",
-                                          style: AppTheme.metaText(
-                                            fontSize: 9,
-                                            fontWeight: FontWeight.w900,
-                                            color: AppTheme.ink,
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  "${r.cuisine} · ${r.zone.replaceAll('_', ' ')}",
-                                  style: AppTheme.bodyFont(
-                                    fontSize: 12,
-                                    color: Colors.white.withValues(alpha: 0.9),
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+                                  );
+                                },
+                                errorBuilder: (ctx, err, stack) => _buildRestaurantFallback(r.name),
+                              )
+                            : _buildRestaurantFallback(r.name),
                       ),
 
-                      // Metrics Row
                       Padding(
-                        padding: const EdgeInsets.all(14),
+                        padding: const EdgeInsets.all(16),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        "WAIT NOW",
-                                        style: AppTheme.metaText(
-                                          fontSize: 9,
-                                          color: AppTheme.inkFaint,
+                                        r.name,
+                                        style: AppTheme.displayFont(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w700,
                                         ),
                                       ),
                                       const SizedBox(height: 2),
                                       Text(
-                                        "${r.waitTime} min",
-                                        style: AppTheme.displayFont(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w800,
-                                          color: _waitColor(r.waitTime),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        "PREDICTED",
-                                        style: AppTheme.metaText(
-                                          fontSize: 9,
-                                          color: AppTheme.inkFaint,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        "${r.predictedWaitTime} min",
-                                        style: AppTheme.displayFont(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w800,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        "TRANSIT",
-                                        style: AppTheme.metaText(
-                                          fontSize: 9,
-                                          color: AppTheme.inkFaint,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        "${r.distanceFromVenue} min",
-                                        style: AppTheme.displayFont(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w800,
+                                        "${r.cuisine} · ${r.address}",
+                                        style: AppTheme.bodyFont(
+                                          fontSize: 12,
+                                          color: AppTheme.inkMuted,
                                         ),
                                       ),
                                     ],
                                   ),
                                 ),
                                 Container(
-                                  padding: const EdgeInsets.all(8),
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                   decoration: BoxDecoration(
-                                    color: AppTheme.paper,
+                                    color: AppTheme.yellowLight,
                                     borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+                                    border: Border.all(color: AppTheme.yellow),
                                   ),
-                                  child: const Icon(Icons.arrow_forward_ios, size: 12, color: AppTheme.inkMuted),
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.star, color: AppTheme.ink, size: 14),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        "${r.rating}",
+                                        style: AppTheme.displayFont(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ],
                             ),
+                            const SizedBox(height: 12),
 
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Icon(Icons.place_outlined, size: 14, color: AppTheme.inkMuted),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      "${r.distanceFromVenue} min walk/transit",
+                                      style: AppTheme.bodyFont(
+                                        fontSize: 12,
+                                        color: AppTheme.inkLight,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                Text(
+                                  "Wait: ${r.waitTime} min",
+                                  style: AppTheme.displayFont(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: _waitColor(r.waitTime),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                if (r.hasIncentive)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.yellowLight,
+                                      borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+                                    ),
+                                    child: Text(
+                                      r.incentiveLabel ?? "Match Offer",
+                                      style: AppTheme.metaText(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppTheme.ink,
+                                      ),
+                                    ),
+                                  )
+                                else
+                                  const SizedBox.shrink(),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.yellow,
+                                    borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+                                  ),
+                                  child: Text(
+                                    "View Details →",
+                                    style: AppTheme.displayFont(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ],
                         ),
                       ),
@@ -338,17 +296,57 @@ class _FoodScreenState extends State<FoodScreen> {
               ),
             )
                 .animate()
-                .fadeIn(duration: 350.ms, delay: Duration(milliseconds: 100 + (idx * 50)))
-                .slideY(begin: 0.08, end: 0, curve: Curves.easeOutCubic);
+                .fadeIn(duration: 300.ms, delay: Duration(milliseconds: idx * 40))
+                .slideY(begin: 0.05, end: 0, curve: Curves.easeOutCubic);
           }),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
         ],
       ),
     );
   }
 
+  Widget _buildRestaurantFallback(String name) {
+    return Container(
+      height: 140,
+      width: double.infinity,
+      color: AppTheme.paper,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.restaurant, color: AppTheme.inkMuted, size: 36),
+          const SizedBox(height: 4),
+          Text(
+            name,
+            style: AppTheme.bodyFont(fontSize: 12, color: AppTheme.inkMuted, fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
+    );
+  }
 
+  Widget _buildFilterChip(String key, String label, bool isSelected) {
+    return MotionTap(
+      onTap: () => setState(() => _sortBy = key),
+      scaleDown: 0.94,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? AppTheme.ink : AppTheme.white,
+          borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+          border: Border.all(color: isSelected ? AppTheme.ink : AppTheme.neutral),
+        ),
+        child: Text(
+          label,
+          style: AppTheme.displayFont(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: isSelected ? AppTheme.white : AppTheme.ink,
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _RestaurantDetailSheet extends StatefulWidget {

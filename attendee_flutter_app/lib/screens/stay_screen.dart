@@ -7,7 +7,6 @@ import 'destination_route_screen.dart';
 import '../services/maps_launcher.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
-import '../widgets/pill_badge.dart';
 import '../widgets/pressure_bar.dart';
 import '../widgets/motion_tap.dart';
 
@@ -21,13 +20,8 @@ class StayScreen extends StatefulWidget {
 }
 
 class _StayScreenState extends State<StayScreen> {
-  String _selectedZoneFilter = "ALL";
-
-  Color _pressureColor(int pressure) {
-    if (pressure >= 85) return AppTheme.red;
-    if (pressure >= 70) return AppTheme.orange;
-    return AppTheme.green;
-  }
+  String _searchQuery = "";
+  String _sortBy = "RATING"; // RATING, PRICE, DISTANCE
 
   void _showHotelDetailModal(BuildContext context, Hotel hotel) {
     showModalBottomSheet(
@@ -41,21 +35,21 @@ class _StayScreenState extends State<StayScreen> {
   @override
   Widget build(BuildContext context) {
     final hotels = widget.appState.hotels;
-    final zoneA = hotels.where((h) => h.zone == "ZONE_A").toList();
-    final zoneB = hotels.where((h) => h.zone == "ZONE_B").toList();
-    final zoneC = hotels.where((h) => h.zone == "ZONE_C").toList();
 
-    final zoneARooms = zoneA.fold(0, (sum, h) => sum + h.usableRooms);
-    final zoneBRooms = zoneB.fold(0, (sum, h) => sum + h.usableRooms);
-    final zoneCRooms = zoneC.fold(0, (sum, h) => sum + h.usableRooms);
+    List<Hotel> displayHotels = hotels.where((h) {
+      if (_searchQuery.isEmpty) return true;
+      final query = _searchQuery.toLowerCase();
+      return h.name.toLowerCase().contains(query) ||
+          h.address.toLowerCase().contains(query) ||
+          h.zone.toLowerCase().contains(query);
+    }).toList();
 
-    final zoneAPressure = (zoneA.fold(0, (sum, h) => sum + h.pressure) / (zoneA.isEmpty ? 1 : zoneA.length)).round();
-    final zoneBPressure = (zoneB.fold(0, (sum, h) => sum + h.pressure) / (zoneB.isEmpty ? 1 : zoneB.length)).round();
-    final zoneCPressure = (zoneC.fold(0, (sum, h) => sum + h.pressure) / (zoneC.isEmpty ? 1 : zoneC.length)).round();
-
-    List<Hotel> displayHotels = [...zoneC, ...zoneB, ...zoneA];
-    if (_selectedZoneFilter != "ALL") {
-      displayHotels = displayHotels.where((h) => h.zone == _selectedZoneFilter).toList();
+    if (_sortBy == "RATING") {
+      displayHotels.sort((a, b) => b.rating.compareTo(a.rating));
+    } else if (_sortBy == "PRICE") {
+      displayHotels.sort((a, b) => a.priceRange.compareTo(b.priceRange));
+    } else if (_sortBy == "DISTANCE") {
+      displayHotels.sort((a, b) => a.travelTimeToVenue.compareTo(b.travelTimeToVenue));
     }
 
     return SingleChildScrollView(
@@ -64,120 +58,66 @@ class _StayScreenState extends State<StayScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            "ACCOMMODATION CAPACITY",
+            "ACCOMMODATION",
             style: AppTheme.metaText(fontSize: 12, color: AppTheme.inkMuted),
           ).animate().fadeIn(duration: 250.ms),
           const SizedBox(height: 6),
           Text(
-            "Find Match Stays",
+            "Hotels",
             style: AppTheme.displayFont(
               fontSize: 22,
               fontWeight: FontWeight.w700,
               letterSpacing: -0.5,
             ),
           ).animate().fadeIn(duration: 300.ms, delay: 50.ms).slideY(begin: 0.08, end: 0),
-          const SizedBox(height: 4),
-          Text(
-            "Tap any hotel to explore live room inventory, photos, match shuttle & rates",
-            style: AppTheme.bodyFont(fontSize: 13, color: AppTheme.inkMuted),
-          ).animate().fadeIn(delay: 100.ms),
           const SizedBox(height: 16),
 
-          // Zone Comparison Carousel / Cards
-          Row(
-            children: [
-              Expanded(
-                child: _buildZoneCard(
-                  name: "Zone A",
-                  subtitle: "South Mumbai",
-                  rooms: zoneARooms,
-                  pressure: zoneAPressure,
-                  travelTime: 12,
-                  isRecommended: false,
-                  isSelected: _selectedZoneFilter == "ZONE_A",
-                  onTap: () {
-                    setState(() {
-                      _selectedZoneFilter = _selectedZoneFilter == "ZONE_A" ? "ALL" : "ZONE_A";
-                    });
-                  },
-                  delay: 80,
-                ),
+          // Search Box
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+            decoration: BoxDecoration(
+              color: AppTheme.white,
+              borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+              border: Border.all(color: AppTheme.neutral, width: 1.0),
+              boxShadow: AppTheme.shadowSm,
+            ),
+            child: TextField(
+              onChanged: (val) => setState(() => _searchQuery = val),
+              style: AppTheme.bodyFont(fontSize: 14, color: AppTheme.ink),
+              decoration: const InputDecoration(
+                icon: Icon(Icons.search, size: 20, color: AppTheme.inkMuted),
+                hintText: "Search hotels by name or location...",
+                border: InputBorder.none,
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildZoneCard(
-                  name: "Zone B",
-                  subtitle: "Marine Drive",
-                  rooms: zoneBRooms,
-                  pressure: zoneBPressure,
-                  travelTime: 18,
-                  isRecommended: false,
-                  isSelected: _selectedZoneFilter == "ZONE_B",
-                  onTap: () {
-                    setState(() {
-                      _selectedZoneFilter = _selectedZoneFilter == "ZONE_B" ? "ALL" : "ZONE_B";
-                    });
-                  },
-                  delay: 130,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildZoneCard(
-                  name: "Zone C",
-                  subtitle: "Dadar Hub",
-                  rooms: zoneCRooms,
-                  pressure: zoneCPressure,
-                  travelTime: 22,
-                  isRecommended: true,
-                  isSelected: _selectedZoneFilter == "ZONE_C",
-                  onTap: () {
-                    setState(() {
-                      _selectedZoneFilter = _selectedZoneFilter == "ZONE_C" ? "ALL" : "ZONE_C";
-                    });
-                  },
-                  delay: 180,
-                ),
-              ),
-            ],
+            ),
           ),
-
-          const SizedBox(height: 24),
-
-          // Hotel List Header
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                "PARTICIPATING PROPERTIES (${displayHotels.length})",
-                style: AppTheme.metaText(fontSize: 11, color: AppTheme.inkMuted),
-              ),
-              if (_selectedZoneFilter != "ALL")
-                GestureDetector(
-                  onTap: () => setState(() => _selectedZoneFilter = "ALL"),
-                  child: const Text(
-                    "Show All",
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.ink,
-                      decoration: TextDecoration.underline,
-                    ),
-                  ),
-                )
-              else
-                const PillBadge(
-                  text: "ZONE C RECOMMENDED",
-                  variant: PillVariant.yellow,
-                  fontSize: 9,
-                ),
-            ],
-          ).animate().fadeIn(delay: 200.ms),
           const SizedBox(height: 12),
 
+          // Filter Pills Row (Sort by Price, Rating, Distance)
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _buildFilterChip("RATING", "Top Rated ★", _sortBy == "RATING"),
+                const SizedBox(width: 8),
+                _buildFilterChip("DISTANCE", "Closest to Venue", _sortBy == "DISTANCE"),
+                const SizedBox(width: 8),
+                _buildFilterChip("PRICE", "Price / Category", _sortBy == "PRICE"),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Hotel Count Header
+          Text(
+            "ALL HOTELS (${displayHotels.length})",
+            style: AppTheme.metaText(fontSize: 11, color: AppTheme.inkMuted),
+          ),
+          const SizedBox(height: 12),
+
+          // Unified Hotel List
           ...List.generate(displayHotels.length, (idx) {
             final h = displayHotels[idx];
-            final isZoneC = h.zone == "ZONE_C";
 
             return MotionTap(
               onTap: () => _showHotelDetailModal(context, h),
@@ -187,10 +127,7 @@ class _StayScreenState extends State<StayScreen> {
                 decoration: BoxDecoration(
                   color: AppTheme.white,
                   borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-                  border: Border.all(
-                    color: isZoneC ? AppTheme.yellow : AppTheme.neutral,
-                    width: isZoneC ? 1.5 : 1.0,
-                  ),
+                  border: Border.all(color: AppTheme.neutral, width: 1.0),
                   boxShadow: AppTheme.shadowSm,
                 ),
                 child: ClipRRect(
@@ -198,98 +135,31 @@ class _StayScreenState extends State<StayScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Header Thumbnail + Meta
-                      Stack(
-                        children: [
-                          if (h.imageUrl != null)
-                            SizedBox(
-                              height: 130,
-                              width: double.infinity,
-                              child: Image.network(
-                                h.imageUrl!,
-                                fit: BoxFit.cover,
-                                errorBuilder: (ctx, err, stack) => Container(
-                                  color: AppTheme.neutral,
-                                  child: const Center(
-                                    child: Icon(Icons.hotel, color: AppTheme.inkMuted, size: 36),
-                                  ),
-                                ),
-                              ),
-                            )
-                          else
-                            Container(
-                              height: 90,
+                      // HOTEL IMAGE (Restored)
+                      if (h.imageUrl != null)
+                        SizedBox(
+                          height: 140,
+                          width: double.infinity,
+                          child: Image.network(
+                            h.imageUrl!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (ctx, err, stack) => Container(
+                              height: 140,
                               color: AppTheme.neutral,
                               child: const Center(
                                 child: Icon(Icons.hotel, color: AppTheme.inkMuted, size: 36),
                               ),
                             ),
-                          // Gradient overlay
-                          Positioned.fill(
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: [
-                                    Colors.black.withValues(alpha: 0.15),
-                                    Colors.black.withValues(alpha: 0.70),
-                                  ],
-                                ),
-                              ),
-                            ),
                           ),
-                          // Top Badges
-                          Positioned(
-                            top: 10,
-                            left: 12,
-                            right: 12,
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withValues(alpha: 0.7),
-                                    borderRadius: BorderRadius.circular(AppTheme.radiusSm),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(Icons.star, color: AppTheme.yellow, size: 14),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        "${h.rating} (${h.reviewsCount}+)",
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Flexible(
-                                  child: PillBadge(
-                                    text: h.zone.replaceAll("_", " "),
-                                    variant: isZoneC
-                                        ? PillVariant.live
-                                        : h.pressureLevel == PressureLevel.WATCH
-                                            ? PillVariant.watch
-                                            : PillVariant.critical,
-                                    fontSize: 10,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          // Hotel Name & Price on Thumbnail
-                          Positioned(
-                            bottom: 10,
-                            left: 12,
-                            right: 12,
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.end,
+                        ),
+
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Expanded(
                                   child: Column(
@@ -298,20 +168,17 @@ class _StayScreenState extends State<StayScreen> {
                                       Text(
                                         h.name,
                                         style: AppTheme.displayFont(
-                                          fontSize: 17,
-                                          fontWeight: FontWeight.w800,
-                                          color: Colors.white,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w700,
                                         ),
-                                        overflow: TextOverflow.ellipsis,
                                       ),
                                       const SizedBox(height: 2),
                                       Text(
                                         h.address,
                                         style: AppTheme.bodyFont(
-                                          fontSize: 11,
-                                          color: Colors.white.withValues(alpha: 0.9),
+                                          fontSize: 12,
+                                          color: AppTheme.inkMuted,
                                         ),
-                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ],
                                   ),
@@ -319,151 +186,81 @@ class _StayScreenState extends State<StayScreen> {
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                   decoration: BoxDecoration(
-                                    color: isZoneC ? AppTheme.yellow : Colors.white,
+                                    color: AppTheme.yellowLight,
                                     borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+                                    border: Border.all(color: AppTheme.yellow),
                                   ),
-                                  child: Text(
-                                    h.priceRange.split('–').first.trim(),
-                                    style: AppTheme.displayFont(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w800,
-                                      color: AppTheme.ink,
-                                    ),
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.star, color: AppTheme.ink, size: 14),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        "${h.rating}",
+                                        style: AppTheme.displayFont(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ],
                             ),
-                          ),
-                        ],
-                      ),
+                            const SizedBox(height: 12),
 
-                      // Metrics Row
-                      Padding(
-                        padding: const EdgeInsets.all(14),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
                             Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        "USABLE ROOMS",
-                                        style: AppTheme.metaText(
-                                          fontSize: 9,
-                                          color: AppTheme.inkFaint,
-                                        ),
+                                Row(
+                                  children: [
+                                    const Icon(Icons.place_outlined, size: 14, color: AppTheme.inkMuted),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      "${h.travelTimeToVenue} min to venue",
+                                      style: AppTheme.bodyFont(
+                                        fontSize: 12,
+                                        color: AppTheme.inkLight,
                                       ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        "${h.usableRooms}",
-                                        style: AppTheme.displayFont(
-                                          fontSize: 17,
-                                          fontWeight: FontWeight.w800,
-                                        ),
-                                      ),
-                                      Text(
-                                        "of ${h.availableRooms} open",
-                                        style: AppTheme.bodyFont(
-                                          fontSize: 10,
-                                          color: AppTheme.inkMuted,
-                                        ),
-                                      ),
-                                    ],
+                                    ),
+                                  ],
+                                ),
+                                Text(
+                                  h.priceRange,
+                                  style: AppTheme.displayFont(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppTheme.ink,
                                   ),
                                 ),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        "TO VENUE",
-                                        style: AppTheme.metaText(
-                                          fontSize: 9,
-                                          color: AppTheme.inkFaint,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        "${h.travelTimeToVenue} min",
-                                        style: AppTheme.displayFont(
-                                          fontSize: 17,
-                                          fontWeight: FontWeight.w800,
-                                        ),
-                                      ),
-                                      Text(
-                                        "direct transit",
-                                        style: AppTheme.bodyFont(
-                                          fontSize: 10,
-                                          color: AppTheme.inkMuted,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        "PRESSURE",
-                                        style: AppTheme.metaText(
-                                          fontSize: 9,
-                                          color: AppTheme.inkFaint,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        "${h.pressure}%",
-                                        style: AppTheme.displayFont(
-                                          fontSize: 17,
-                                          fontWeight: FontWeight.w800,
-                                          color: _pressureColor(h.pressure),
-                                        ),
-                                      ),
-                                      Text(
-                                        h.pressureLevel.name,
-                                        style: AppTheme.bodyFont(
-                                          fontSize: 10,
-                                          color: _pressureColor(h.pressure),
-                                        ),
-                                      ),
-                                    ],
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  "${h.usableRooms} rooms available",
+                                  style: AppTheme.metaText(
+                                    fontSize: 10,
+                                    color: AppTheme.inkMuted,
                                   ),
                                 ),
                                 Container(
-                                  padding: const EdgeInsets.all(8),
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                                   decoration: BoxDecoration(
-                                    color: AppTheme.paper,
+                                    color: AppTheme.yellow,
                                     borderRadius: BorderRadius.circular(AppTheme.radiusSm),
                                   ),
-                                  child: const Icon(Icons.arrow_forward_ios, size: 12, color: AppTheme.inkMuted),
-                                ),
-                              ],
-                            ),
-
-                            const SizedBox(height: 12),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: AppTheme.paper,
-                                borderRadius: BorderRadius.circular(AppTheme.radiusSm),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.directions_bus_filled, size: 14, color: AppTheme.inkMuted),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      h.shuttleInfo,
-                                      style: AppTheme.bodyFont(fontSize: 11, color: AppTheme.inkLight),
-                                      overflow: TextOverflow.ellipsis,
+                                  child: Text(
+                                    "View Details →",
+                                    style: AppTheme.displayFont(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
                                     ),
                                   ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -474,8 +271,8 @@ class _StayScreenState extends State<StayScreen> {
               ),
             )
                 .animate()
-                .fadeIn(duration: 350.ms, delay: Duration(milliseconds: 100 + (idx * 50)))
-                .slideY(begin: 0.08, end: 0, curve: Curves.easeOutCubic);
+                .fadeIn(duration: 300.ms, delay: Duration(milliseconds: idx * 40))
+                .slideY(begin: 0.05, end: 0, curve: Curves.easeOutCubic);
           }),
 
           const SizedBox(height: 16),
@@ -484,83 +281,27 @@ class _StayScreenState extends State<StayScreen> {
     );
   }
 
-  Widget _buildZoneCard({
-    required String name,
-    required String subtitle,
-    required int rooms,
-    required int pressure,
-    required int travelTime,
-    required bool isRecommended,
-    required bool isSelected,
-    required VoidCallback onTap,
-    required int delay,
-  }) {
+  Widget _buildFilterChip(String key, String label, bool isSelected) {
     return MotionTap(
-      onTap: onTap,
+      onTap: () => setState(() => _sortBy = key),
       scaleDown: 0.94,
       child: Container(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: isSelected ? AppTheme.ink : (isRecommended ? AppTheme.yellowLight : AppTheme.white),
+          color: isSelected ? AppTheme.ink : AppTheme.white,
           borderRadius: BorderRadius.circular(AppTheme.radiusSm),
-          border: Border.all(
-            color: isSelected ? AppTheme.ink : (isRecommended ? AppTheme.yellow : AppTheme.neutral),
-            width: isRecommended || isSelected ? 1.5 : 1.0,
-          ),
-          boxShadow: AppTheme.shadowSm,
+          border: Border.all(color: isSelected ? AppTheme.ink : AppTheme.neutral),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  name,
-                  style: AppTheme.displayFont(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    color: isSelected ? Colors.white : AppTheme.ink,
-                  ),
-                ),
-                if (isRecommended && !isSelected)
-                  const Text("★", style: TextStyle(fontSize: 12, color: AppTheme.ink)),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              "$rooms usable",
-              style: AppTheme.displayFont(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: isSelected ? Colors.white : AppTheme.ink,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              "$pressure% pressure",
-              style: AppTheme.bodyFont(
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-                color: isSelected ? AppTheme.yellowLight : _pressureColor(pressure),
-              ),
-            ),
-            Text(
-              "$travelTime m to venue",
-              style: AppTheme.bodyFont(
-                fontSize: 10,
-                color: isSelected ? Colors.white70 : AppTheme.inkMuted,
-              ),
-            ),
-            const SizedBox(height: 6),
-            PressureBar(percentage: pressure, height: 4),
-          ],
+        child: Text(
+          label,
+          style: AppTheme.displayFont(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: isSelected ? AppTheme.white : AppTheme.ink,
+          ),
         ),
       ),
-    )
-        .animate()
-        .fadeIn(duration: 350.ms, delay: Duration(milliseconds: delay))
-        .scaleXY(begin: 0.92, end: 1.0, curve: Curves.easeOutBack);
+    );
   }
 }
 

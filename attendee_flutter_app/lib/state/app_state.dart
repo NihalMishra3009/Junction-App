@@ -128,6 +128,17 @@ class AppState extends ChangeNotifier {
     return changed;
   }
 
+  String? _scannedBarcode = "8901234567890";
+  String? get scannedBarcode => _scannedBarcode;
+
+  void setScannedBarcode(String code) {
+    if (code.trim().isNotEmpty) {
+      _scannedBarcode = code.trim();
+      _addClosedLoopEvent("Barcode scanned and saved: $_scannedBarcode");
+      notifyListeners();
+    }
+  }
+
   ScenarioId get activeScenario => _activeScenario;
   int get currentTabIndex => _currentTabIndex;
   String? get attendeeSelectedRouteId => _attendeeSelectedRouteId;
