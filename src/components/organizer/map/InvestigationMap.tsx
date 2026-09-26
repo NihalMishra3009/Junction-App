@@ -333,6 +333,20 @@ function addMapLayers(map: MapLibreMap) {
   if (!map.getSource("secret-data")) map.addSource("secret-data", { type: "geojson", data: featureCollection([]) });
   if (!map.getSource("secret-heatmap-data")) map.addSource("secret-heatmap-data", { type: "geojson", data: featureCollection([]) });
 
+  // Operational Zone Layer - Ground Level Fill
+  if (!map.getLayer("secret-zone-fill")) {
+    map.addLayer({
+      id: "secret-zone-fill",
+      type: "fill",
+      source: "secret-data",
+      filter: ["==", ["get", "kind"], "zone"],
+      paint: {
+        "fill-color": ["coalesce", ["get", "fillColor"], "#10b981"],
+        "fill-opacity": 0.28,
+      },
+    });
+  }
+
   // 3D GPU Crowd Density Heatmap Layer - Original glowing volumetric heat gradient
   if (!map.getLayer("secret-heatmap-layer")) {
     map.addLayer({
@@ -361,21 +375,7 @@ function addMapLayers(map: MapLibreMap) {
     });
   }
 
-  // Operational Zone Layer - Subtle Fill
-  if (!map.getLayer("secret-zone-fill")) {
-    map.addLayer({
-      id: "secret-zone-fill",
-      type: "fill",
-      source: "secret-data",
-      filter: ["==", ["get", "kind"], "zone"],
-      paint: {
-        "fill-color": ["get", "fillColor"],
-        "fill-opacity": 0.12,
-      },
-    });
-  }
-
-  // Operational Zone Layer - Boundary Outline
+  // Operational Zone Layer - Boundary Outline (Added AFTER Heatmap)
   if (!map.getLayer("secret-zone-outline")) {
     map.addLayer({
       id: "secret-zone-outline",
@@ -383,10 +383,9 @@ function addMapLayers(map: MapLibreMap) {
       source: "secret-data",
       filter: ["==", ["get", "kind"], "zone"],
       paint: {
-        "line-color": ["get", "borderColor"],
-        "line-width": 2,
-        "line-dasharray": [4, 3],
-        "line-opacity": 0.85,
+        "line-color": ["coalesce", ["get", "borderColor"], "#059669"],
+        "line-width": 3.5,
+        "line-opacity": 1.0,
       },
     });
   }
@@ -1048,8 +1047,21 @@ export default function InvestigationMap({
       if (!map.getLayer(threeOverlay.id)) map.addLayer(threeOverlay);
 
       const st = useMapStore.getState();
+      const zoneGeoData = buildData(st.markers, resources, roads, st.showCases, st.showLocations, st.showRoutes, st.selectedCaseId, st.selectedLocationId, simulationState);
+      const zoneFeatures = zoneGeoData.features.filter((f) => f.properties?.kind === "zone");
+
+      console.log("[JUNCTION ZONES]", {
+        zoneCount: OPERATIONAL_ZONES.length,
+        geoJsonFeatureCount: zoneFeatures.length,
+        firstZone: zoneFeatures[0]?.properties,
+        firstZoneGeometry: zoneFeatures[0]?.geometry,
+        sourceExists: Boolean(map.getSource("secret-data")),
+        fillLayerExists: Boolean(map.getLayer("secret-zone-fill")),
+        outlineLayerExists: Boolean(map.getLayer("secret-zone-outline")),
+      });
+
       const ds = map.getSource("secret-data") as maplibregl.GeoJSONSource | undefined;
-      if (ds) ds.setData(buildData(st.markers, resources, roads, st.showCases, st.showLocations, st.showRoutes, st.selectedCaseId, st.selectedLocationId, simulationState));
+      if (ds) ds.setData(zoneGeoData);
       const hds = map.getSource("secret-heatmap-data") as maplibregl.GeoJSONSource | undefined;
       if (hds) hds.setData(buildHeatmapData(hotspots, st.markers, activeLayers, resources, simulationState));
 
