@@ -333,20 +333,6 @@ function addMapLayers(map: MapLibreMap) {
   if (!map.getSource("secret-data")) map.addSource("secret-data", { type: "geojson", data: featureCollection([]) });
   if (!map.getSource("secret-heatmap-data")) map.addSource("secret-heatmap-data", { type: "geojson", data: featureCollection([]) });
 
-  // Operational Zone Layer - Ground Level Subtle Fill (Added BEFORE Heatmap)
-  if (!map.getLayer("secret-zone-fill")) {
-    map.addLayer({
-      id: "secret-zone-fill",
-      type: "fill",
-      source: "secret-data",
-      filter: ["==", ["get", "kind"], "zone"],
-      paint: {
-        "fill-color": ["get", "fillColor"],
-        "fill-opacity": 0.12,
-      },
-    });
-  }
-
   // 3D GPU Crowd Density Heatmap Layer - Original glowing volumetric heat gradient
   if (!map.getLayer("secret-heatmap-layer")) {
     map.addLayer({
@@ -375,7 +361,21 @@ function addMapLayers(map: MapLibreMap) {
     });
   }
 
-  // Operational Zone Layer - Boundary Outline (Added AFTER Heatmap)
+  // Operational Zone Layer - Subtle Fill
+  if (!map.getLayer("secret-zone-fill")) {
+    map.addLayer({
+      id: "secret-zone-fill",
+      type: "fill",
+      source: "secret-data",
+      filter: ["==", ["get", "kind"], "zone"],
+      paint: {
+        "fill-color": ["get", "fillColor"],
+        "fill-opacity": 0.12,
+      },
+    });
+  }
+
+  // Operational Zone Layer - Boundary Outline
   if (!map.getLayer("secret-zone-outline")) {
     map.addLayer({
       id: "secret-zone-outline",
@@ -569,7 +569,6 @@ function buildData(
 
     const { fill: fillColor, border: borderColor } = getZoneColor(pressure);
     const severity = pressure >= 90 ? "CRITICAL" : pressure >= 75 ? "HIGH" : pressure >= 50 ? "MODERATE" : "NORMAL";
-    const operationalRadius = getOperationalZoneRadius(zone.id);
 
     // Polygon boundary
     features.push({
@@ -585,7 +584,7 @@ function buildData(
       },
       geometry: {
         type: "Polygon",
-        coordinates: createCirclePolygon(zone.center.longitude, zone.center.latitude, operationalRadius),
+        coordinates: createCirclePolygon(zone.center.longitude, zone.center.latitude, zone.radiusMeters),
       },
     });
 
@@ -775,27 +774,6 @@ function buildData(
   return featureCollection(features);
 }
 
-function getOperationalZoneRadius(zoneId: string): number {
-  switch (zoneId) {
-    case "ZONE_WANKHEDE":
-      return 120; // Stadium bowl & concourse perimeter
-    case "ZONE_CHURCHGATE":
-      return 90; // Station terminal & plaza catchment
-    case "ZONE_TAXI_STAGING":
-      return 65; // Dedicated curbside pickup bay
-    case "ZONE_MARINE_LINES":
-      return 85; // Station platforms & footover bridge
-    case "ZONE_CSMT":
-      return 110; // Central terminal building & forecourt
-    case "ZONE_HOTELS_SOUTH":
-      return 120; // Nariman Point hospitality cluster
-    case "ZONE_DADAR":
-      return 135; // Transit interchange concourse
-    default:
-      return 85;
-  }
-}
-
 function createCirclePolygon(centerLng: number, centerLat: number, radiusMeters: number, steps = 32): number[][][] {
   const coordinates: number[][] = [];
   const km = radiusMeters / 1000;
@@ -809,9 +787,7 @@ function createCirclePolygon(centerLng: number, centerLat: number, radiusMeters:
     const deltaLat = dy / 111.32;
     const deltaLng = dx / (111.32 * Math.cos(latRad));
 
-    // Clamp longitude to >= 72.8220 to strictly prevent water coverage in Back Bay / Arabian Sea
-    const safeLng = Math.max(72.8220, centerLng + deltaLng);
-    coordinates.push([safeLng, centerLat + deltaLat]);
+    coordinates.push([centerLng + deltaLng, centerLat + deltaLat]);
   }
 
   return [coordinates];
