@@ -1,4 +1,5 @@
 // ignore_for_file: constant_identifier_names
+import 'package:flutter/material.dart';
 
 enum ScenarioId {
   NORMAL,
@@ -27,20 +28,41 @@ extension ScenarioIdExtension on ScenarioId {
     }
   }
 
-  String get shortCode {
+  String get badgeLabel {
     switch (this) {
       case ScenarioId.NORMAL:
         return "NORMAL";
       case ScenarioId.POST_EVENT_SURGE:
-        return "POST_SURGE";
+        return "POST SURGE";
       case ScenarioId.TRANSPORT_DISRUPTION:
-        return "DISRUPT";
+        return "RAIL DISRUPTION";
       case ScenarioId.HEAVY_RAIN:
-        return "RAIN";
+        return "HEAVY RAIN";
       case ScenarioId.ACCOMMODATION_SATURATION:
-        return "HOTEL_FULL";
+        return "HOTEL SATURATION";
       case ScenarioId.EVENT_DELAY:
-        return "DELAY_30M";
+        return "+30 MIN DELAY";
+    }
+  }
+
+  String get shortCode => badgeLabel;
+}
+
+enum RouteStrategy {
+  fastest,
+  balanced,
+  lowCrowd,
+}
+
+extension RouteStrategyExtension on RouteStrategy {
+  String get displayName {
+    switch (this) {
+      case RouteStrategy.fastest:
+        return "FASTEST";
+      case RouteStrategy.balanced:
+        return "BALANCED";
+      case RouteStrategy.lowCrowd:
+        return "LOW CROWD";
     }
   }
 }
@@ -57,6 +79,63 @@ enum AlertSeverity {
   WATCH,
   HIGH,
   CRITICAL,
+}
+
+enum TravelMode {
+  multimodal,
+  walking,
+  driving,
+  train,
+  metro,
+}
+
+extension TravelModeExtension on TravelMode {
+  String get displayName {
+    switch (this) {
+      case TravelMode.multimodal:
+        return "ALL";
+      case TravelMode.walking:
+        return "WALK";
+      case TravelMode.driving:
+        return "CAR";
+      case TravelMode.train:
+        return "TRANSIT";
+      case TravelMode.metro:
+        return "METRO";
+    }
+  }
+
+  IconData get iconData {
+    switch (this) {
+      case TravelMode.multimodal:
+        return Icons.public;
+      case TravelMode.walking:
+        return Icons.directions_walk;
+      case TravelMode.driving:
+        return Icons.directions_car;
+      case TravelMode.train:
+        return Icons.train;
+      case TravelMode.metro:
+        return Icons.subway;
+    }
+  }
+
+  String get iconSymbol {
+    switch (this) {
+      case TravelMode.multimodal:
+        return "🌐";
+      case TravelMode.walking:
+        return "🚶";
+      case TravelMode.driving:
+        return "🚗";
+      case TravelMode.train:
+        return "🚆";
+      case TravelMode.metro:
+        return "🚇";
+    }
+  }
+
+  String get osrmProfile => this == TravelMode.walking ? "foot" : "car";
 }
 
 enum AlertCategory {
@@ -198,6 +277,10 @@ class Hotel {
   final String address;
   final String shuttleInfo;
   final String phone;
+  final String? bookingUrl;
+  final double? latitude;
+  final double? longitude;
+  final String? googleMapsPlaceId;
   final List<HotelAmenity> amenities;
   final List<HotelRoomType> roomTypes;
 
@@ -223,6 +306,10 @@ class Hotel {
     this.address = "Mumbai, Maharashtra",
     this.shuttleInfo = "Direct Match Express Shuttle every 15 min",
     this.phone = "+91 22 6600 8800",
+    this.bookingUrl,
+    this.latitude,
+    this.longitude,
+    this.googleMapsPlaceId,
     this.amenities = const [],
     this.roomTypes = const [],
   });
@@ -267,6 +354,11 @@ class Restaurant {
   final String address;
   final String openingHours;
   final String? phone;
+  final String? reservationUrl;
+  final String? websiteUrl;
+  final double? latitude;
+  final double? longitude;
+  final String? googleMapsPlaceId;
   final List<MenuItem> menuItems;
 
   const Restaurant({
@@ -292,6 +384,11 @@ class Restaurant {
     this.address = "Marine Lines / Fort, Mumbai",
     this.openingHours = "10:00 AM – 11:30 PM",
     this.phone = "+91 22 2204 5678",
+    this.reservationUrl,
+    this.websiteUrl,
+    this.latitude,
+    this.longitude,
+    this.googleMapsPlaceId,
     this.menuItems = const [],
   });
 }

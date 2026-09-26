@@ -25,33 +25,35 @@ class _SplashScreenState extends State<SplashScreen> {
     _navigateToNext();
   }
 
-  void _navigateToNext() {
-    Future.delayed(const Duration(milliseconds: 2200), () {
-      if (mounted) {
-        final targetWidget = widget.appState.isAuthenticated
-            ? MainShell(appState: widget.appState)
-            : AuthScreen(appState: widget.appState);
+  void _navigateToNext() async {
+    // Fetch authoritative backend scenario & live state before navigating
+    await widget.appState.syncWithBackend();
 
-        Navigator.of(context).pushReplacement(
-          PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) => targetWidget,
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
-              return FadeTransition(
-                opacity: animation,
-                child: SlideTransition(
-                  position: Tween<Offset>(
-                    begin: const Offset(0.0, 0.04),
-                    end: Offset.zero,
-                  ).animate(animation),
-                  child: child,
-                ),
-              );
-            },
-            transitionDuration: const Duration(milliseconds: 450),
-          ),
-        );
-      }
-    });
+    await Future.delayed(const Duration(milliseconds: 1400));
+    if (mounted) {
+      final targetWidget = widget.appState.isAuthenticated
+          ? MainShell(appState: widget.appState)
+          : AuthScreen(appState: widget.appState);
+
+      Navigator.of(context).pushReplacement(
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) => targetWidget,
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(
+              opacity: animation,
+              child: SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(0.0, 0.04),
+                  end: Offset.zero,
+                ).animate(animation),
+                child: child,
+              ),
+            );
+          },
+          transitionDuration: const Duration(milliseconds: 450),
+        ),
+      );
+    }
   }
 
   @override

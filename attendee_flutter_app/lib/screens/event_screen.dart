@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../models/map_destination.dart';
 import '../models/types.dart';
+import '../services/crowd_routing_service.dart';
+import '../services/location_service.dart';
+import '../services/navigation_service.dart';
+import '../services/routing_service.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/pill_badge.dart';
@@ -10,6 +16,63 @@ class EventScreen extends StatelessWidget {
   final AppState appState;
 
   const EventScreen({super.key, required this.appState});
+
+  Future<void> _makePhoneCall(String phoneNumber, BuildContext context) async {
+    final Uri launchUri = Uri(
+      scheme: 'tel',
+      path: phoneNumber,
+    );
+    try {
+      final launched = await launchUrl(launchUri, mode: LaunchMode.externalApplication);
+      if (!launched) {
+        await launchUrl(launchUri);
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Calling $phoneNumber..."),
+            backgroundColor: AppTheme.ink,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _navigateToVenue(BuildContext context) async {
+    const venueDest = MapDestination.wankhedeStadium;
+    final userLoc = await LocationService.getCurrentLocation() ?? LocationService.defaultDemoLocation;
+
+    final rawRoutes = await RoutingService.getRoutes(
+      origin: userLoc,
+      destination: venueDest.location,
+    );
+
+    final scoredRoutes = CrowdRoutingService.evaluateAndScoreRoutes(
+      rawRoutes: rawRoutes,
+      appState: appState,
+    );
+
+    if (scoredRoutes.isNotEmpty) {
+      final bestRoute = scoredRoutes.firstWhere((r) => r.recommended, orElse: () => scoredRoutes.first);
+      NavigationService().setAvailableRoutes(scoredRoutes, selected: bestRoute);
+      NavigationService().startNavigation(bestRoute, userLoc);
+      appState.setTabIndex(0); // Switch to Plan screen map
+    }
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: AppTheme.ink,
+          content: Text(
+            "Navigating to Wankhede Stadium on JUNCTION map.",
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -80,7 +143,44 @@ class EventScreen extends StatelessWidget {
                     color: AppTheme.inkMuted,
                   ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
+
+                // Directions Button
+                MotionTap(
+                  onTap: () => _navigateToVenue(context),
+                  scaleDown: 0.96,
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(
+                      color: AppTheme.yellow,
+                      borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppTheme.yellow.withValues(alpha: 0.3),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.navigation, size: 16, color: AppTheme.ink),
+                        const SizedBox(width: 8),
+                        Text(
+                          "GET DIRECTIONS TO VENUE",
+                          style: AppTheme.displayFont(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
 
                 // Timetable Grid
                 Container(
@@ -227,6 +327,75 @@ class EventScreen extends StatelessWidget {
 
           const SizedBox(height: 20),
 
+          // Emergency Help Section
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: AppTheme.redBg,
+              borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+              border: Border.all(color: AppTheme.red.withValues(alpha: 0.3), width: 1.2),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      "EMERGENCY & SUPPORT",
+                      style: AppTheme.displayFont(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.4,
+                        color: AppTheme.red,
+                      ),
+                    ),
+                    const PillBadge(
+                      text: "24/7 HELPLINE",
+                      variant: PillVariant.critical,
+                      fontSize: 9,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  "Direct emergency contact lines for venue security, medical first responders, and local authorities.",
+                  style: AppTheme.bodyFont(
+                    fontSize: 12,
+                    color: AppTheme.inkLight,
+                    height: 1.3,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                _buildEmergencyButton(
+                  context: context,
+                  label: "POLICE (112 / 100)",
+                  number: "112",
+                  icon: Icons.local_police,
+                ),
+                const SizedBox(height: 8),
+                _buildEmergencyButton(
+                  context: context,
+                  label: "FIRE & RESCUE (101)",
+                  number: "101",
+                  icon: Icons.local_fire_department,
+                ),
+                const SizedBox(height: 8),
+                _buildEmergencyButton(
+                  context: context,
+                  label: "AMBULANCE & MEDICAL (102)",
+                  number: "102",
+                  icon: Icons.medical_services,
+                ),
+              ],
+            ),
+          )
+              .animate()
+              .fadeIn(duration: 350.ms, delay: 200.ms)
+              .slideY(begin: 0.08, end: 0, curve: Curves.easeOutCubic),
+
+          const SizedBox(height: 20),
+
           // Venue Guidelines
           Container(
             padding: const EdgeInsets.all(20),
@@ -252,11 +421,65 @@ class EventScreen extends StatelessWidget {
             ),
           )
               .animate()
-              .fadeIn(duration: 350.ms, delay: 220.ms)
+              .fadeIn(duration: 350.ms, delay: 250.ms)
               .slideY(begin: 0.08, end: 0, curve: Curves.easeOutCubic),
 
           const SizedBox(height: 20),
         ],
+      ),
+    );
+  }
+
+  Widget _buildEmergencyButton({
+    required BuildContext context,
+    required String label,
+    required String number,
+    required IconData icon,
+  }) {
+    return MotionTap(
+      onTap: () => _makePhoneCall(number, context),
+      scaleDown: 0.96,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppTheme.white,
+          borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+          border: Border.all(color: AppTheme.red.withValues(alpha: 0.4)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: AppTheme.red),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                label,
+                style: AppTheme.displayFont(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.ink,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppTheme.red,
+                borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+              ),
+              child: const Text(
+                "CALL",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 11,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -299,3 +522,4 @@ class EventScreen extends StatelessWidget {
     );
   }
 }
+

@@ -1,467 +1,453 @@
-import 'dart:math' as math;
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import '../models/types.dart';
+import '../models/map_destination.dart';
+import '../models/route_option.dart';
+import '../models/multimodal_route.dart';
+import '../services/navigation_service.dart';
+import '../services/navigation_voice_service.dart';
+import '../services/location_service.dart';
 import '../theme/app_theme.dart';
 import 'motion_tap.dart';
 
-/// Real interactive Leaflet Map for Mumbai transit routes (Wadala -> CSMT/Dadar -> Wankhede Stadium)
-/// Built using flutter_map (official Leaflet engine in Flutter) with CartoDB Positron / OSM tiles
-/// matching the clean cream & yellow paper theme of the app.
 class RouteTransitMap extends StatefulWidget {
-  final AttendeeRoute route;
+  final List<RouteOption> routeOptions;
+  final RouteOption? selectedRoute;
   final double height;
   final bool isInteractive;
-  final int? highlightedStepIndex;
-  final VoidCallback? onExpand;
+  final MapDestination? destination;
+  final LatLng? destinationLoc;
+  final String? destinationName;
+  final ValueChanged<RouteOption>? onRouteSelected;
+  final VoidCallback? onStartNavigation;
 
   const RouteTransitMap({
     super.key,
-    required this.route,
-    this.height = 240,
+    required this.routeOptions,
+    this.selectedRoute,
+    this.height = 320,
     this.isInteractive = true,
-    this.highlightedStepIndex,
-    this.onExpand,
+    this.destination,
+    this.destinationLoc,
+    this.destinationName,
+    this.onRouteSelected,
+    this.onStartNavigation,
   });
+
+  LatLng get actualDestinationLoc =>
+      destination?.location ?? destinationLoc ?? MapDestination.wankhedeStadium.location;
+
+  String get actualDestinationName =>
+      destination?.name ?? destinationName ?? MapDestination.wankhedeStadium.name;
 
   @override
   State<RouteTransitMap> createState() => _RouteTransitMapState();
 }
 
-class _RouteTransitMapState extends State<RouteTransitMap>
-    with SingleTickerProviderStateMixin {
+class _RouteTransitMapState extends State<RouteTransitMap> with TickerProviderStateMixin {
+  static const double previewZoom = 13.8;
+  static const double navigationZoom = 17.5;
+
   late final MapController _mapController;
-  late final AnimationController _simController;
-  bool _isSimulating = false;
-  double _simProgress = 0.0;
+  final NavigationService _navService = NavigationService();
 
-  // Real geographic coordinates of Mumbai stations & stadium
-  static const LatLng originCoords = LatLng(19.0195, 72.8590); // Wadala East
-  static const LatLng vadalaStationCoords = LatLng(19.0165, 72.8580); // Vadala Road Station
-  static const LatLng kurlaStationCoords = LatLng(19.0657, 72.8793); // Kurla Interchange
-  static const LatLng dadarStationCoords = LatLng(19.0180, 72.8430); // Dadar Central
-  static const LatLng marineLinesCoords = LatLng(18.9442, 72.8236); // Marine Lines Station
-  static const LatLng csmtStationCoords = LatLng(18.9400, 72.8353); // CSMT Station
-  static const LatLng wankhedeGate3Coords = LatLng(18.9389, 72.8258); // Wankhede Stadium Gate 3
-
-  // Intermediate Real Railway GeoPoints along Mumbai Harbour Line
-  static const List<LatLng> harbourLineCoords = [
-    LatLng(19.0165, 72.8580), // Vadala Road
-    LatLng(19.0002, 72.8553), // Sewri
-    LatLng(18.9868, 72.8524), // Cotton Green
-    LatLng(18.9774, 72.8488), // Reay Road
-    LatLng(18.9663, 72.8438), // Dockyard Road
-    LatLng(18.9525, 72.8398), // Sandhurst Road
-    LatLng(18.9400, 72.8353), // CSMT Station
-  ];
-
-  // Intermediate Real Railway GeoPoints along Western Line
-  static const List<LatLng> westernLineCoords = [
-    LatLng(19.0180, 72.8430), // Dadar West
-    LatLng(18.9950, 72.8300), // Lower Parel
-    LatLng(18.9820, 72.8240), // Mahalakshmi
-    LatLng(18.9690, 72.8190), // Mumbai Central
-    LatLng(18.9550, 72.8180), // Grant Road
-    LatLng(18.9490, 72.8200), // Charni Road
-    LatLng(18.9442, 72.8236), // Marine Lines
-  ];
-
-  // Road Shuttle route Dadar -> Wankhede
-  static const List<LatLng> shuttleCorridorCoords = [
-    LatLng(19.0180, 72.8430), // Dadar TT Circle
-    LatLng(19.0010, 72.8320), // Prabhadevi / Senapati Bapat Marg
-    LatLng(18.9700, 72.8200), // Haji Ali / Pedder Road
-    LatLng(18.9530, 72.8120), // Marine Drive North
-    LatLng(18.9389, 72.8258), // Wankhede Stadium
-  ];
+  LatLng _userPosition = LocationService.defaultDemoLocation;
+  bool _showCrowdOverlay = true;
+  bool _autoFollowUser = false;
+  bool _wasNavigating = false;
+  AnimationController? _cameraAnimController;
 
   @override
   void initState() {
     super.initState();
     _mapController = MapController();
-    _simController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 8500),
-    );
+    _initLocationTracking();
 
-    _simController.addListener(() {
-      if (mounted) {
-        setState(() {
-          _simProgress = _simController.value;
-        });
-      }
-    });
-
-    _simController.addStatusListener((status) {
-      if (status == AnimationStatus.completed) {
-        if (mounted) {
-          setState(() {
-            _isSimulating = false;
-          });
-        }
-      }
-    });
+    _navService.addListener(_onNavStateChanged);
   }
 
   @override
   void dispose() {
-    _simController.dispose();
+    _cameraAnimController?.dispose();
+    _navService.removeListener(_onNavStateChanged);
     super.dispose();
   }
 
-  void _startSimulation() {
-    setState(() {
-      _isSimulating = true;
-      _simProgress = 0.0;
-    });
-    _simController.forward(from: 0.0);
-  }
+  void _animatedMove(LatLng destCenter, double destZoom) {
+    _cameraAnimController?.dispose();
 
-  LatLng _getSimulatedLocation(List<LatLng> fullPath) {
-    if (fullPath.isEmpty) return originCoords;
-    final int count = fullPath.length - 1;
-    if (count <= 0) return fullPath.first;
+    final camera = _mapController.camera;
+    final latTween = Tween<double>(begin: camera.center.latitude, end: destCenter.latitude);
+    final lngTween = Tween<double>(begin: camera.center.longitude, end: destCenter.longitude);
+    final zoomTween = Tween<double>(begin: camera.zoom, end: destZoom);
 
-    final double segProgress = _simProgress * count;
-    final int index = math.min(segProgress.floor(), count - 1);
-    final double t = segProgress - index;
-
-    final LatLng p1 = fullPath[index];
-    final LatLng p2 = fullPath[index + 1];
-
-    return LatLng(
-      p1.latitude + (p2.latitude - p1.latitude) * t,
-      p1.longitude + (p2.longitude - p1.longitude) * t,
+    final controller = AnimationController(
+      duration: const Duration(milliseconds: 750),
+      vsync: this,
     );
+    _cameraAnimController = controller;
+
+    final Animation<double> animation = CurvedAnimation(
+      parent: controller,
+      curve: Curves.fastOutSlowIn,
+    );
+
+    controller.addListener(() {
+      _mapController.move(
+        LatLng(latTween.evaluate(animation), lngTween.evaluate(animation)),
+        zoomTween.evaluate(animation),
+      );
+    });
+
+    controller.forward().then((_) {
+      if (_cameraAnimController == controller) {
+        _cameraAnimController = null;
+      }
+      controller.dispose();
+    });
   }
 
-  String _getCurrentSimulationMode(List<LatLng> fullPath) {
-    if (fullPath.isEmpty) return "WALK";
-    final int count = fullPath.length - 1;
-    if (count <= 0) return "WALK";
+  void _onNavStateChanged() {
+    if (mounted) {
+      final isNav = _navService.isNavigating;
+      setState(() {});
 
-    final double segProgress = _simProgress * count;
-    final int index = math.min(segProgress.floor(), count - 1);
-
-    if (widget.route.type == "FASTEST") {
-      if (index == 0) return "WALK"; // Walk to Vadala
-      if (index >= 1 && index < fullPath.length - 2) return "RAIL"; // Harbour train
-      return "WALK"; // Walk CSMT -> Gate 3
-    } else if (widget.route.type == "BALANCED") {
-      if (index == 0) return "WALK"; // Walk to Kurla
-      if (index == 1) return "RAIL"; // Central rail to Dadar
-      if (index >= 2 && index < fullPath.length - 1) return "BUS"; // AC Shuttle to Stadium
-      return "WALK";
-    } else {
-      // LOW_CROWD
-      if (index == 0) return "WALK"; // Walk to Skywalk
-      if (index >= 1 && index < fullPath.length - 2) return "RAIL"; // Western line
-      return "WALK"; // Marine Drive walk to Gate 3
+      if (isNav && !_wasNavigating) {
+        _autoFollowUser = true;
+        final startPos = _navService.currentPosition ?? _userPosition;
+        _animatedMove(startPos, navigationZoom);
+      } else if (isNav && _autoFollowUser && _navService.currentPosition != null) {
+        _mapController.move(_navService.currentPosition!, navigationZoom);
+      }
+      _wasNavigating = isNav;
     }
   }
 
-  IconData _getSimulatedIcon(String mode) {
-    switch (mode) {
-      case "RAIL":
-        return Icons.train_rounded;
-      case "BUS":
-        return Icons.directions_bus_rounded;
-      case "METRO":
-        return Icons.subway_rounded;
-      case "WALK":
-      default:
-        return Icons.directions_walk_rounded;
+  Future<void> _initLocationTracking() async {
+    final loc = await LocationService.getCurrentLocation();
+    if (loc != null && mounted) {
+      setState(() {
+        _userPosition = loc;
+      });
+      _navService.updatePosition(loc);
     }
+
+    LocationService.startPositionTracking((newPos) {
+      if (mounted) {
+        setState(() {
+          _userPosition = newPos;
+        });
+        _navService.updatePosition(newPos);
+      }
+    });
   }
 
-  Color _getSimulatedModeColor(String mode) {
-    switch (mode) {
-      case "RAIL":
-        return const Color(0xFF2563EB); // Royal Blue
-      case "BUS":
-        return const Color(0xFFEA580C); // Shuttle Orange
-      case "METRO":
-        return const Color(0xFF16A34A); // Green
-      case "WALK":
-      default:
-        return AppTheme.ink; // Dark Ink
-    }
-  }
-
-  String _getSimulatedLabel(String mode) {
-    switch (mode) {
-      case "RAIL":
-        return widget.route.type == "FASTEST" ? "Harbour Fast Train" : "Suburban Local";
-      case "BUS":
-        return "AC Event Shuttle";
-      case "WALK":
-      default:
-        return "Walking to Station";
-    }
-  }
-
-  List<LatLng> _getFullRoutePoints() {
-    if (widget.route.type == "FASTEST") {
-      return [
-        originCoords,
-        ...harbourLineCoords,
-        wankhedeGate3Coords,
-      ];
-    } else if (widget.route.type == "BALANCED") {
-      return [
-        originCoords,
-        kurlaStationCoords,
-        dadarStationCoords,
-        ...shuttleCorridorCoords,
-      ];
-    } else {
-      return [
-        originCoords,
-        ...westernLineCoords,
-        wankhedeGate3Coords,
-      ];
+  void _recenterMap() {
+    final active = widget.selectedRoute ?? (_navService.activeRoute) ?? (widget.routeOptions.isNotEmpty ? widget.routeOptions.first : null);
+    if (_navService.isNavigating && _navService.currentPosition != null) {
+      _animatedMove(_navService.currentPosition!, navigationZoom);
+      setState(() {
+        _autoFollowUser = true;
+      });
+    } else if (active != null && active.geometry.isNotEmpty) {
+      final bounds = LatLngBounds.fromPoints([
+        _userPosition,
+        widget.actualDestinationLoc,
+        ...active.geometry,
+      ]);
+      _mapController.fitCamera(
+        CameraFit.bounds(
+          bounds: bounds,
+          padding: const EdgeInsets.all(40),
+        ),
+      );
+      setState(() {
+        _autoFollowUser = false;
+      });
     }
   }
 
   void _zoomIn() {
-    final currentZoom = _mapController.camera.zoom;
-    _mapController.move(_mapController.camera.center, currentZoom + 0.8);
+    _mapController.move(_mapController.camera.center, _mapController.camera.zoom + 0.6);
   }
 
   void _zoomOut() {
-    final currentZoom = _mapController.camera.zoom;
-    _mapController.move(_mapController.camera.center, currentZoom - 0.8);
+    _mapController.move(_mapController.camera.center, _mapController.camera.zoom - 0.6);
   }
 
-  void _resetBounds() {
-    _mapController.move(
-      const LatLng(18.9800, 72.8420), // Center of South Mumbai Corridor
-      11.8,
-    );
+  List<Polyline> _buildSegmentPolylines(RouteOption route) {
+    final List<Polyline> list = [];
+    if (route.multimodalRoute != null && route.multimodalRoute!.segments.isNotEmpty) {
+      for (var seg in route.multimodalRoute!.segments) {
+        Color c = const Color(0xFF10B981);
+        double width = 6.0;
+        if (seg.type == SegmentType.walk) {
+          c = const Color(0xFF3B82F6);
+          width = 4.5;
+        } else if (seg.type == SegmentType.train) {
+          c = const Color(0xFF8B5CF6);
+          width = 7.5;
+        } else if (seg.type == SegmentType.metro) {
+          c = const Color(0xFF06B6D4);
+          width = 7.5;
+        }
+
+        if (seg.geometry.isNotEmpty) {
+          list.add(Polyline(
+            points: seg.geometry,
+            color: c.withValues(alpha: 0.35),
+            strokeWidth: width + 4.0,
+          ));
+          list.add(Polyline(
+            points: seg.geometry,
+            color: c,
+            strokeWidth: width,
+          ));
+        }
+      }
+    } else {
+      list.add(Polyline(
+        points: route.geometry,
+        color: route.recommended ? const Color(0x5510B981) : const Color(0x55F59E0B),
+        strokeWidth: 10.0,
+      ));
+      list.add(Polyline(
+        points: route.geometry,
+        color: route.recommended
+            ? const Color(0xFF10B981)
+            : (route.typeTag == 'FASTEST' ? const Color(0xFF3B82F6) : const Color(0xFFF59E0B)),
+        strokeWidth: 6.0,
+      ));
+    }
+    return list;
   }
 
   @override
   Widget build(BuildContext context) {
-    final routeType = widget.route.type;
-    final isFastest = routeType == "FASTEST";
-    final isBalanced = routeType == "BALANCED";
-    final fullPoints = _getFullRoutePoints();
-
-    // Map Center point (between Wadala & Wankhede)
-    final LatLng mapCenter = const LatLng(18.9800, 72.8420);
+    final activeRoute = widget.selectedRoute ?? _navService.activeRoute ?? (widget.routeOptions.isNotEmpty ? widget.routeOptions.first : null);
+    final isNavigating = _navService.isNavigating;
+    final currentStep = _navService.currentStep;
 
     return Container(
       height: widget.height,
-      width: double.infinity,
-      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: const Color(0xFFE5E3DF),
+        color: const Color(0xFF0F172A),
         borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-        border: Border.all(color: AppTheme.neutral, width: 1.0),
-        boxShadow: AppTheme.shadowSm,
+        border: Border.all(color: AppTheme.neutralDark, width: 1.2),
+        boxShadow: AppTheme.shadowMd,
       ),
+      clipBehavior: Clip.antiAlias,
       child: Stack(
         children: [
-          // Real OpenStreetMap / CartoDB Light Vector-style Tiles
+          // 1. FlutterMap (Leaflet OpenStreetMap Layer)
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
-              initialCenter: mapCenter,
-              initialZoom: widget.height > 180 ? 11.6 : 10.8,
-              minZoom: 9.0,
-              maxZoom: 18.0,
+              initialCenter: activeRoute != null && activeRoute.geometry.isNotEmpty
+                  ? activeRoute.geometry[activeRoute.geometry.length ~/ 2]
+                  : widget.actualDestinationLoc,
+              initialZoom: previewZoom,
+              minZoom: 9.5,
+              maxZoom: 18.5,
               interactionOptions: InteractionOptions(
-                flags: widget.isInteractive
-                    ? InteractiveFlag.all
-                    : InteractiveFlag.none,
+                flags: widget.isInteractive ? InteractiveFlag.all : InteractiveFlag.none,
               ),
+              onPositionChanged: (pos, hasGesture) {
+                if (hasGesture && _autoFollowUser) {
+                  setState(() {
+                    _autoFollowUser = false;
+                  });
+                }
+              },
             ),
             children: [
-              // 100% Free OpenStreetMap with Pure True Black & Charcoal Grey OLED Matrix Filter
+              // Tile Layer: Standard OpenStreetMap Tiles
               TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                subdomains: const ['a', 'b', 'c'],
                 userAgentPackageName: 'com.junction.attendee.app',
                 maxZoom: 19,
-                tileBuilder: (context, tileWidget, tile) {
-                  return ColorFiltered(
-                    colorFilter: const ColorFilter.matrix(<double>[
-                      // Pure Black & Grey Monochrome Inversion (R = G = B everywhere, zero tint)
-                      -0.18, -0.60, -0.06, 0, 218,
-                      -0.18, -0.60, -0.06, 0, 218,
-                      -0.18, -0.60, -0.06, 0, 218,
-                       0.00,  0.00,  0.00, 1,   0,
-                    ]),
-                    child: tileWidget,
-                  );
-                },
               ),
 
-              // Polyline Layer for Transit Paths
+              // Crowd Overlay Zones (if enabled)
+              if (_showCrowdOverlay)
+                CircleLayer(
+                  circles: [
+                    // Churchgate choke point
+                    CircleMarker(
+                      point: const LatLng(18.9322, 72.8264),
+                      color: AppTheme.red.withValues(alpha: 0.22),
+                      borderStrokeWidth: 1.5,
+                      borderColor: AppTheme.red.withValues(alpha: 0.6),
+                      useRadiusInMeter: true,
+                      radius: 650,
+                    ),
+                    // Marine Lines zone
+                    CircleMarker(
+                      point: const LatLng(18.9438, 72.8236),
+                      color: AppTheme.yellow.withValues(alpha: 0.18),
+                      borderStrokeWidth: 1.2,
+                      borderColor: AppTheme.yellow.withValues(alpha: 0.5),
+                      useRadiusInMeter: true,
+                      radius: 500,
+                    ),
+                    // Dadar redistribution corridor
+                    CircleMarker(
+                      point: const LatLng(19.0178, 72.8478),
+                      color: AppTheme.green.withValues(alpha: 0.18),
+                      borderStrokeWidth: 1.2,
+                      borderColor: AppTheme.green.withValues(alpha: 0.5),
+                      useRadiusInMeter: true,
+                      radius: 800,
+                    ),
+                  ],
+                ),
+
+              // Polylines Layer for Standard Base Route and Selected JUNCTION Route
               PolylineLayer(
                 polylines: [
-                  // 1. Walk from Origin -> First Station (Dashed Neon Blue/Yellow)
-                  if (isFastest)
-                    Polyline(
-                      points: const [originCoords, vadalaStationCoords],
-                      color: widget.highlightedStepIndex == 0
-                          ? AppTheme.yellow
-                          : const Color(0xFF38BDF8),
-                      strokeWidth: widget.highlightedStepIndex == 0 ? 5.0 : 3.5,
-                      pattern: const StrokePattern.dotted(),
-                    )
-                  else if (isBalanced)
-                    Polyline(
-                      points: const [originCoords, kurlaStationCoords],
-                      color: widget.highlightedStepIndex == 0
-                          ? AppTheme.yellow
-                          : const Color(0xFF38BDF8),
-                      strokeWidth: widget.highlightedStepIndex == 0 ? 5.0 : 3.5,
-                      pattern: const StrokePattern.dotted(),
-                    )
-                  else
-                    Polyline(
-                      points: const [originCoords, LatLng(19.0180, 72.8430)],
-                      color: widget.highlightedStepIndex == 0
-                          ? AppTheme.yellow
-                          : const Color(0xFF38BDF8),
-                      strokeWidth: widget.highlightedStepIndex == 0 ? 5.0 : 3.5,
-                      pattern: const StrokePattern.dotted(),
-                    ),
+                  // 1. Draw Standard Baseline Route Base (Light Transparent Red Polyline)
+                  for (var route in widget.routeOptions)
+                    if (route.typeTag == 'FASTEST' || route.id != activeRoute?.id)
+                      Polyline(
+                        points: route.geometry,
+                        color: const Color(0x77EF4444), // Muted Light Transparent Red for Standard Baseline
+                        strokeWidth: 4.5,
+                      ),
 
-                  // 2. Railway Track Line (Blue for Harbour, Orange for Shuttle, Green for Western)
-                  if (isFastest)
-                    Polyline(
-                      points: harbourLineCoords,
-                      color: widget.highlightedStepIndex == 1
-                          ? AppTheme.yellow
-                          : const Color(0xFF3B82F6),
-                      strokeWidth: widget.highlightedStepIndex == 1 ? 7.0 : 5.0,
-                    )
-                  else if (isBalanced) ...[
-                    Polyline(
-                      points: const [kurlaStationCoords, dadarStationCoords],
-                      color: widget.highlightedStepIndex == 1
-                          ? AppTheme.yellow
-                          : const Color(0xFFFACC15),
-                      strokeWidth: 5.0,
-                    ),
-                    Polyline(
-                      points: shuttleCorridorCoords,
-                      color: widget.highlightedStepIndex == 2
-                          ? AppTheme.yellow
-                          : const Color(0xFFFB923C),
-                      strokeWidth: widget.highlightedStepIndex == 2 ? 7.0 : 5.5,
-                    ),
-                  ] else
-                    Polyline(
-                      points: westernLineCoords,
-                      color: widget.highlightedStepIndex == 1
-                          ? AppTheme.yellow
-                          : const Color(0xFF10B981),
-                      strokeWidth: widget.highlightedStepIndex == 1 ? 7.0 : 5.0,
-                    ),
-
-                  // 3. Walk from CSMT/Marine Lines -> Wankhede Stadium Gate 3
-                  if (isFastest)
-                    Polyline(
-                      points: const [csmtStationCoords, wankhedeGate3Coords],
-                      color: widget.highlightedStepIndex == 2
-                          ? AppTheme.yellow
-                          : const Color(0xFF38BDF8),
-                      strokeWidth: widget.highlightedStepIndex == 2 ? 5.0 : 3.5,
-                      pattern: const StrokePattern.dotted(),
-                    )
-                  else if (!isBalanced)
-                    Polyline(
-                      points: const [marineLinesCoords, wankhedeGate3Coords],
-                      color: widget.highlightedStepIndex == 2
-                          ? AppTheme.yellow
-                          : const Color(0xFF38BDF8),
-                      strokeWidth: widget.highlightedStepIndex == 2 ? 5.0 : 3.5,
-                      pattern: const StrokePattern.dotted(),
-                    ),
+                  // 2. Active Route: Multi-Segment or Road Polyline Rendering
+                  if (activeRoute != null && activeRoute.geometry.isNotEmpty) ...[
+                    if (isNavigating) ...[
+                      // Completed Polyline Portion (Muted Slate Grey behind user)
+                      if (_completedGeometry(activeRoute.geometry).isNotEmpty)
+                        Polyline(
+                          points: _completedGeometry(activeRoute.geometry),
+                          color: const Color(0x6664748B),
+                          strokeWidth: 4.5,
+                        ),
+                      // Remaining Polyline Portion
+                      if (_remainingGeometry(activeRoute.geometry).isNotEmpty) ...[
+                        Polyline(
+                          points: _remainingGeometry(activeRoute.geometry),
+                          color: const Color(0x5510B981),
+                          strokeWidth: 10.0,
+                        ),
+                        Polyline(
+                          points: _remainingGeometry(activeRoute.geometry),
+                          color: const Color(0xFF10B981),
+                          strokeWidth: 6.0,
+                        ),
+                      ],
+                    ] else ...[
+                      // Multi-segment preview or full route preview
+                      ..._buildSegmentPolylines(activeRoute),
+                    ],
+                  ],
                 ],
               ),
 
-              // Marker Layer for Stations & Stadium Pins
+              // Markers Layer: Current Location & Dynamic Destination Marker
               MarkerLayer(
                 markers: [
-                  // Origin Marker
+                  // User GPS Current Location Marker / Rotating Triangular Chevron Arrow
                   Marker(
-                    point: originCoords,
-                    width: 90,
-                    height: 40,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: AppTheme.ink,
-                            borderRadius: BorderRadius.circular(4),
+                    point: _navService.currentPosition ?? _userPosition,
+                    width: isNavigating ? 48 : 44,
+                    height: isNavigating ? 48 : 44,
+                    child: isNavigating
+                        ? Transform.rotate(
+                            angle: (_navService.currentHeading * (3.141592653589793 / 180.0)),
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                // Pulsing navigation halo
+                                Container(
+                                  width: 44,
+                                  height: 44,
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.yellow.withValues(alpha: 0.35),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: AppTheme.yellow, width: 1.5),
+                                  ),
+                                ),
+                                // Triangular Chevron Navigation Arrow
+                                CustomPaint(
+                                  size: const Size(24, 26),
+                                  painter: _ChevronArrowPainter(),
+                                ),
+                              ],
+                            ),
+                          )
+                        : Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              Container(
+                                width: 38,
+                                height: 38,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF3B82F6).withValues(alpha: 0.25),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              Container(
+                                width: 18,
+                                height: 18,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF2563EB),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: Colors.white, width: 2.5),
+                                  boxShadow: const [
+                                    BoxShadow(
+                                      color: Colors.black38,
+                                      blurRadius: 4,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
-                          child: const Text(
-                            "📍 Origin",
-                            style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(
-                            color: AppTheme.green,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      ],
-                    ),
                   ),
 
-                  // Stations
-                  if (isFastest) ...[
-                    _buildStationMarker(vadalaStationCoords, "Vadala Rd"),
-                    _buildStationMarker(csmtStationCoords, "CSMT (P1)"),
-                  ] else if (isBalanced) ...[
-                    _buildStationMarker(kurlaStationCoords, "Kurla"),
-                    _buildStationMarker(dadarStationCoords, "Dadar Shuttle Bay"),
-                  ] else ...[
-                    _buildStationMarker(marineLinesCoords, "Marine Lines"),
-                  ],
-
-                  // Destination Stadium Pin (Wankhede Stadium Gate 3)
+                  // Destination Pin (Hotel, Restaurant, or Venue)
                   Marker(
-                    point: wankhedeGate3Coords,
-                    width: 120,
-                    height: 55,
+                    point: widget.actualDestinationLoc,
+                    width: 150,
+                    height: 54,
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
                             color: AppTheme.yellow,
                             borderRadius: BorderRadius.circular(6),
                             border: Border.all(color: AppTheme.ink, width: 1.2),
-                            boxShadow: [
+                            boxShadow: const [
                               BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.2),
+                                color: Colors.black26,
                                 blurRadius: 4,
                               ),
                             ],
                           ),
-                          child: const Text(
-                            "🏟️ Wankhede Gate 3",
-                            style: TextStyle(
+                          child: Text(
+                            widget.destination?.type == DestinationType.RESTAURANT
+                                ? "🍽 ${widget.actualDestinationName}"
+                                : (widget.destination?.type == DestinationType.HOTEL
+                                    ? "🏨 ${widget.actualDestinationName}"
+                                    : "📍 ${widget.actualDestinationName}"),
+                            style: const TextStyle(
                               color: AppTheme.ink,
-                              fontSize: 9,
+                              fontSize: 9.5,
                               fontWeight: FontWeight.w900,
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         Container(
-                          width: 12,
-                          height: 12,
+                          width: 10,
+                          height: 10,
                           decoration: BoxDecoration(
                             color: AppTheme.ink,
                             shape: BoxShape.circle,
@@ -471,284 +457,514 @@ class _RouteTransitMapState extends State<RouteTransitMap>
                       ],
                     ),
                   ),
-
-                  // Moving Attendee Live Avatar with Dynamic Transit Icon (Walk -> Train -> Bus)
-                  if (_isSimulating) () {
-                    final currentMode = _getCurrentSimulationMode(fullPoints);
-                    final modeColor = _getSimulatedModeColor(currentMode);
-                    final modeIcon = _getSimulatedIcon(currentMode);
-                    final modeLabel = _getSimulatedLabel(currentMode);
-
-                    return Marker(
-                      point: _getSimulatedLocation(fullPoints),
-                      width: 100,
-                      height: 52,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AppTheme.ink,
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(color: modeColor, width: 1.2),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.25),
-                                  blurRadius: 4,
-                                ),
-                              ],
-                            ),
-                            child: Text(
-                              modeLabel,
-                              style: TextStyle(
-                                color: modeColor == AppTheme.ink ? AppTheme.yellow : modeColor,
-                                fontSize: 8,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Container(
-                            width: 26,
-                            height: 26,
-                            decoration: BoxDecoration(
-                              color: modeColor,
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 2.2),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: modeColor.withValues(alpha: 0.5),
-                                  blurRadius: 8,
-                                  spreadRadius: 2,
-                                ),
-                              ],
-                            ),
-                            alignment: Alignment.center,
-                            child: Icon(
-                              modeIcon,
-                              size: 14,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }(),
                 ],
               ),
             ],
           ),
 
-          // Top Header Overlay (Real Live Map Indicator)
+          // 2. Map Legend Overlay (Standard = Light Red, JUNCTION = Green)
+          if (!isNavigating)
+            Positioned(
+              top: 10,
+              right: 10,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.92),
+                  borderRadius: BorderRadius.circular(6),
+                  boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4)],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(width: 8, height: 8, decoration: const BoxDecoration(color: AppTheme.red, shape: BoxShape.circle)),
+                    const SizedBox(width: 4),
+                    const Text("Standard", style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: AppTheme.ink)),
+                    const SizedBox(width: 6),
+                    Container(width: 8, height: 8, decoration: const BoxDecoration(color: AppTheme.green, shape: BoxShape.circle)),
+                    const SizedBox(width: 4),
+                    const Text("JUNCTION", style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: AppTheme.ink)),
+                  ],
+                ),
+              ),
+            ),
+
+          // 3. Top Banner Overlay: Active Navigation Turn-by-Turn Card or Route Header
           Positioned(
             top: 10,
-            left: 12,
-            right: 12,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            left: 10,
+            right: 10,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AppTheme.ink.withValues(alpha: 0.9),
-                    borderRadius: BorderRadius.circular(AppTheme.radiusXs),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.1),
-                        blurRadius: 4,
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 6,
-                        height: 6,
-                        decoration: const BoxDecoration(
-                          color: AppTheme.green,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        "${widget.route.label.toUpperCase()} REAL TRANSIT MAP",
-                        style: AppTheme.metaText(fontSize: 9, color: AppTheme.white),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Live simulation action button
-                if (widget.isInteractive)
-                  MotionTap(
-                    onTap: _isSimulating ? null : _startSimulation,
-                    scaleDown: 0.94,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: _isSimulating ? AppTheme.green : AppTheme.yellow,
-                        borderRadius: BorderRadius.circular(AppTheme.radiusXs),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.12),
-                            blurRadius: 4,
+                if (isNavigating && currentStep != null)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppTheme.ink.withValues(alpha: 0.95),
+                      borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+                      border: Border.all(color: AppTheme.yellow, width: 1.5),
+                      boxShadow: AppTheme.shadowMd,
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppTheme.yellow,
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            _isSimulating ? Icons.directions_walk : Icons.play_arrow_rounded,
-                            size: 12,
+                          child: Icon(
+                            _getManeuverIcon(currentStep.maneuver),
+                            size: 24,
                             color: AppTheme.ink,
                           ),
-                          const SizedBox(width: 4),
-                          Text(
-                            _isSimulating ? "IN TRANSIT..." : "LIVE SIMULATE",
-                            style: AppTheme.displayFont(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w800,
-                              color: AppTheme.ink,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                currentStep.instruction.toUpperCase(),
+                                style: AppTheme.displayFont(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w900,
+                                  color: AppTheme.white,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                "in ${_formatDistance(currentStep.distanceMeters)}",
+                                style: AppTheme.metaText(
+                                  fontSize: 11,
+                                  color: AppTheme.yellow,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (LocationService.isDemoMode)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.amber.shade900,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Text(
+                              "DEMO MODE",
+                              style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
                             ),
                           ),
-                        ],
+                      ],
+                    ),
+                  )
+                else
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppTheme.ink.withValues(alpha: 0.92),
+                          borderRadius: BorderRadius.circular(AppTheme.radiusXs),
+                          boxShadow: AppTheme.shadowSm,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.map_rounded, size: 12, color: AppTheme.yellow),
+                            const SizedBox(width: 4),
+                            Text(
+                              "JUNCTION MAP",
+                              style: AppTheme.metaText(fontSize: 8.5, color: AppTheme.white),
+                            ),
+                          ],
+                        ),
                       ),
+                      MotionTap(
+                        onTap: () {
+                          setState(() {
+                            _showCrowdOverlay = !_showCrowdOverlay;
+                          });
+                        },
+                        scaleDown: 0.94,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: _showCrowdOverlay ? AppTheme.yellow : AppTheme.ink.withValues(alpha: 0.92),
+                            borderRadius: BorderRadius.circular(AppTheme.radiusXs),
+                            border: Border.all(color: AppTheme.ink, width: 1.0),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.alt_route_rounded,
+                                size: 11,
+                                color: _showCrowdOverlay ? AppTheme.ink : AppTheme.white,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                _showCrowdOverlay ? "CROWD ZONES ON" : "CROWD ZONES OFF",
+                                style: TextStyle(
+                                  fontSize: 8.5,
+                                  fontWeight: FontWeight.bold,
+                                  color: _showCrowdOverlay ? AppTheme.ink : AppTheme.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                // Dynamic Reroute Alert Message (if any)
+                if (_navService.rerouteAlertMessage != null) ...[
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppTheme.red.withValues(alpha: 0.95),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 14),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            _navService.rerouteAlertMessage!,
+                            style: const TextStyle(color: Colors.white, fontSize: 9.5, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, color: Colors.white, size: 12),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          onPressed: () => _navService.clearRerouteAlert(),
+                        ),
+                      ],
                     ),
                   ),
+                ],
               ],
             ),
           ),
 
-          // Map Zoom & Center Control Buttons
+          // 3. Map Controls (Zoom / Recenter)
           if (widget.isInteractive)
             Positioned(
               right: 10,
-              bottom: 10,
+              bottom: isNavigating ? 70 : 45,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   _buildControlBtn(Icons.add, _zoomIn),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 5),
                   _buildControlBtn(Icons.remove, _zoomOut),
-                  const SizedBox(height: 4),
-                  _buildControlBtn(Icons.center_focus_strong_outlined, _resetBounds),
-                ],
-              ),
-            ),
-
-          // Real Leaflet Tile Attribution & Legend Pill
-          Positioned(
-            left: 10,
-            bottom: 10,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-              decoration: BoxDecoration(
-                color: AppTheme.white.withValues(alpha: 0.92),
-                borderRadius: BorderRadius.circular(AppTheme.radiusXs),
-                border: Border.all(color: AppTheme.neutralDark, width: 0.8),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _buildLegendItem("🚶 Walk", const Color(0xFF1E293B)),
-                  const SizedBox(width: 8),
-                  _buildLegendItem(
-                    isBalanced ? "🚌 Shuttle" : "🚆 Rail",
-                    isBalanced ? const Color(0xFFEA580C) : const Color(0xFF2563EB),
+                  const SizedBox(height: 5),
+                  _buildControlBtn(
+                    _autoFollowUser ? Icons.gps_fixed : Icons.center_focus_strong_outlined,
+                    _recenterMap,
+                    isActive: _autoFollowUser,
                   ),
-                  const SizedBox(width: 8),
-                  _buildLegendItem("🏟️ Wankhede", AppTheme.yellow),
                 ],
               ),
             ),
-          ),
+
+          // 4. Bottom Active Navigation Bar / Action Panel
+          if (isNavigating)
+            Positioned(
+              left: 10,
+              right: 10,
+              bottom: 10,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppTheme.ink.withValues(alpha: 0.95),
+                  borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                  border: Border.all(color: AppTheme.green, width: 1.2),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                _formatDistance(_navService.remainingDistanceMeters),
+                                style: AppTheme.displayFont(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w900,
+                                  color: AppTheme.green,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Text(
+                                "${(_navService.remainingDurationSeconds / 60).ceil()} mins remaining",
+                                style: AppTheme.metaText(fontSize: 10, color: Colors.white70),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              MotionTap(
+                                onTap: () {
+                                  NavigationVoiceService().testVoice();
+                                },
+                                scaleDown: 0.92,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.paperDark,
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(color: AppTheme.yellow, width: 1.0),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.campaign_rounded, size: 11, color: AppTheme.yellow),
+                                      const SizedBox(width: 2),
+                                      Text(
+                                        "TEST VOICE",
+                                        style: AppTheme.displayFont(
+                                          fontSize: 8,
+                                          fontWeight: FontWeight.w900,
+                                          color: AppTheme.yellow,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              MotionTap(
+                                onTap: () {
+                                  final vs = NavigationVoiceService();
+                                  vs.toggleVoice();
+                                  setState(() {});
+                                },
+                                scaleDown: 0.92,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: NavigationVoiceService().isVoiceEnabled ? AppTheme.yellow : AppTheme.paperDark,
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(color: AppTheme.ink, width: 1.0),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        NavigationVoiceService().isVoiceEnabled ? Icons.volume_up_rounded : Icons.volume_off_rounded,
+                                        size: 11,
+                                        color: AppTheme.ink,
+                                      ),
+                                      const SizedBox(width: 2),
+                                      Text(
+                                        NavigationVoiceService().isVoiceEnabled ? "Voice" : "Muted",
+                                        style: AppTheme.displayFont(
+                                          fontSize: 8.5,
+                                          fontWeight: FontWeight.w900,
+                                          color: AppTheme.ink,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              MotionTap(
+                                onTap: () => _navService.stopNavigation(),
+                                scaleDown: 0.92,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.red,
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    "END",
+                                    style: AppTheme.displayFont(
+                                      fontSize: 9.5,
+                                      fontWeight: FontWeight.w900,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      activeRoute?.summaryReason ?? "✓ JUNCTION crowd-monitored path",
+                      style: const TextStyle(color: AppTheme.green, fontSize: 9.5, fontWeight: FontWeight.bold),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else if (widget.onStartNavigation != null && activeRoute != null)
+            Positioned(
+              left: 10,
+              right: 10,
+              bottom: 10,
+              child: MotionTap(
+                onTap: widget.onStartNavigation,
+                scaleDown: 0.96,
+                child: Container(
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AppTheme.yellow,
+                    borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+                    border: Border.all(color: AppTheme.ink, width: 1.2),
+                    boxShadow: AppTheme.shadowSm,
+                  ),
+                  alignment: Alignment.center,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.navigation_rounded, size: 16, color: AppTheme.ink),
+                      const SizedBox(width: 6),
+                      Text(
+                        "START NAVIGATION",
+                        style: AppTheme.displayFont(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900,
+                          color: AppTheme.ink,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
   }
 
-  Marker _buildStationMarker(LatLng point, String name) {
-    return Marker(
-      point: point,
-      width: 80,
-      height: 36,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1.5),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.9),
-              borderRadius: BorderRadius.circular(3),
-              border: Border.all(color: AppTheme.neutralDark, width: 0.6),
-            ),
-            child: Text(
-              name,
-              style: const TextStyle(fontSize: 7.5, fontWeight: FontWeight.bold, color: AppTheme.ink),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          Container(
-            width: 7,
-            height: 7,
-            decoration: BoxDecoration(
-              color: AppTheme.ink,
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 1.5),
-            ),
-          ),
-        ],
-      ),
-    );
+  IconData _getManeuverIcon(String maneuver) {
+    if (maneuver.contains('depart')) return Icons.my_location_rounded;
+    if (maneuver.contains('arrive')) return Icons.flag_rounded;
+    if (maneuver.contains('turn_left') || maneuver.contains('left')) return Icons.turn_left_rounded;
+    if (maneuver.contains('turn_right') || maneuver.contains('right')) return Icons.turn_right_rounded;
+    if (maneuver.contains('slight_left')) return Icons.turn_slight_left_rounded;
+    if (maneuver.contains('slight_right')) return Icons.turn_slight_right_rounded;
+    if (maneuver.contains('sharp_left')) return Icons.turn_sharp_left_rounded;
+    if (maneuver.contains('sharp_right')) return Icons.turn_sharp_right_rounded;
+    if (maneuver.contains('uturn')) return Icons.u_turn_left_rounded;
+    if (maneuver.contains('roundabout')) return Icons.roundabout_left_rounded;
+    return Icons.straight_rounded;
   }
 
-  Widget _buildLegendItem(String label, Color color) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 8,
-          height: 3,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-        const SizedBox(width: 4),
-        Text(
-          label,
-          style: AppTheme.metaText(fontSize: 8, color: AppTheme.ink),
-        ),
-      ],
-    );
+  List<LatLng> _completedGeometry(List<LatLng> full) {
+    if (full.isEmpty) return [];
+    final curPos = _navService.currentPosition ?? _userPosition;
+    final nearestIdx = _findNearestPolylineIndex(curPos, full);
+    if (nearestIdx <= 0) return [];
+    return full.sublist(0, nearestIdx + 1);
   }
 
-  Widget _buildControlBtn(IconData icon, VoidCallback onTap) {
+  List<LatLng> _remainingGeometry(List<LatLng> full) {
+    if (full.isEmpty) return [];
+    final curPos = _navService.currentPosition ?? _userPosition;
+    final nearestIdx = _findNearestPolylineIndex(curPos, full);
+    return full.sublist(nearestIdx);
+  }
+
+  int _findNearestPolylineIndex(LatLng userPos, List<LatLng> points) {
+    if (points.isEmpty) return 0;
+    const distanceCalc = Distance();
+    int minIndex = 0;
+    double minDistance = double.infinity;
+    for (int i = 0; i < points.length; i++) {
+      final dist = distanceCalc.as(LengthUnit.Meter, userPos, points[i]);
+      if (dist < minDistance) {
+        minDistance = dist;
+        minIndex = i;
+      }
+    }
+    return minIndex;
+  }
+
+  String _formatDistance(double meters) {
+    if (meters < 1000) {
+      return "${meters.round()} m";
+    }
+    return "${(meters / 1000).toStringAsFixed(1)} km";
+  }
+
+  Widget _buildControlBtn(IconData icon, VoidCallback onTap, {bool isActive = false}) {
     return MotionTap(
       onTap: onTap,
       scaleDown: 0.92,
       child: Container(
-        width: 28,
-        height: 28,
+        width: 30,
+        height: 30,
         decoration: BoxDecoration(
-          color: AppTheme.white,
+          color: isActive ? AppTheme.yellow : AppTheme.white,
           borderRadius: BorderRadius.circular(6),
           border: Border.all(color: AppTheme.neutralDark, width: 0.8),
-          boxShadow: [
+          boxShadow: const [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.1),
+              color: Colors.black26,
               blurRadius: 3,
-              offset: const Offset(0, 1),
+              offset: Offset(0, 1),
             ),
           ],
         ),
         alignment: Alignment.center,
-        child: Icon(icon, size: 14, color: AppTheme.ink),
+        child: Icon(icon, size: 15, color: AppTheme.ink),
       ),
     );
   }
+}
+
+class _ChevronArrowPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = AppTheme.ink
+      ..style = PaintingStyle.fill;
+
+    final borderPaint = Paint()
+      ..color = AppTheme.yellow
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.5;
+
+    final path = ui.Path();
+    // Triangular chevron pointing UP (0 degrees = North)
+    path.moveTo(size.width / 2, 0); // Tip
+    path.lineTo(size.width, size.height); // Bottom right
+    path.lineTo(size.width / 2, size.height * 0.72); // Inner notch
+    path.lineTo(0, size.height); // Bottom left
+    path.close();
+
+    canvas.drawPath(path, paint);
+    canvas.drawPath(path, borderPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

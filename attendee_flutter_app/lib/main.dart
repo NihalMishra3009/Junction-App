@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'services/location_service.dart';
+import 'services/navigation_voice_service.dart';
 import 'state/app_state.dart';
 import 'theme/app_theme.dart';
 import 'screens/splash_screen.dart';
@@ -34,6 +36,8 @@ class _AttendeeAppState extends State<AttendeeApp> {
   void initState() {
     super.initState();
     _appState.addListener(_onStateChange);
+    LocationService.requestInitialPermissions();
+    NavigationVoiceService(); // Start listening to navigation updates
   }
 
   @override

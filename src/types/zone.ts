@@ -9,6 +9,27 @@ import type { GeoLocation, PressureLevel, Trend, ConfidenceSource } from "./inde
 
 export type ZoneTier = "TIER_1_CRITICAL" | "TIER_2_SUPPORTING" | "TIER_3_PERIPHERAL";
 
+export type ZoneCoverageStatus =
+  | "FULL"
+  | "PARTIAL"
+  | "UNINSTRUMENTED"
+  | "TEMPORARILY_OFFLINE"
+  | "UNKNOWN";
+
+export interface ZoneCoverageProfile {
+  zoneId: string;
+  displayName: string;
+  coverageStatus: ZoneCoverageStatus;
+  dataSource: string;
+  registeredDeviceCount: number;
+  deviceModalities: string[];
+  maxPermittedConfidence: number;
+  fallbackBehavior: "NONE" | "REGIONAL_BASELINE" | "TOPOLOGY_PROPAGATION" | "PARTNER_ESTIMATE";
+  freshnessMaxAgeSeconds: number;
+  canTriggerOperationalRecommendations: boolean;
+  assumptions?: string;
+}
+
 export type MonitoringStatus =
   | "CONTINUOUS"
   | "ADAPTIVE"
@@ -40,6 +61,31 @@ export interface ZoneDefinition {
   nominalPedestrianCapacity: number;
   nominalTransitCapacity: number;
   description: string;
+}
+
+export interface ContributingSensorSummary {
+  deviceId: string;
+  deviceName: string;
+  deviceType: string;
+  metricType: string;
+  value: number;
+  unit: string;
+  weight: number;
+  confidence: number;
+  qualityStatus: import("./observation").QualityStatus;
+  freshnessSeconds: number;
+}
+
+export interface FusionDiagnostics {
+  capacityBasis: string;
+  operationalCapacity: number;
+  safetyBufferPercent: number;
+  usableCapacityBasis: number;
+  formula: string;
+  contributingSensors: ContributingSensorSummary[];
+  conflicts: string[];
+  missingSensors: string[];
+  density: number;
 }
 
 /**
@@ -93,6 +139,18 @@ export interface ZoneState {
   /** Data provenance confidence score: 0.0 (pure estimate) → 1.0 (directly observed) */
   confidence: number;
   source: ConfidenceSource;
+  /** Spatial density in people or detected devices per square meter */
+  density?: number;
+  /** Device IDs that contributed to the fused state */
+  contributingSensors?: string[];
+  /** Overall data quality status across zone sensors */
+  dataQuality?: import("./observation").QualityStatus;
+  /** Active conflict messages or device discrepancies */
+  conflicts?: string[];
+  /** Registered sensors expected for this zone that are missing or offline */
+  missingSensors?: string[];
+  /** Full mathematical and provenance breakdown for the evaluator */
+  fusionDiagnostics?: FusionDiagnostics;
 }
 
 export interface SensorObservation {

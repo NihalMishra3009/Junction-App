@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:latlong2/latlong.dart';
+import '../models/map_destination.dart';
 import '../models/types.dart';
+import 'destination_route_screen.dart';
+import '../services/maps_launcher.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/pill_badge.dart';
@@ -30,7 +34,7 @@ class _StayScreenState extends State<StayScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => _HotelDetailSheet(hotel: hotel),
+      builder: (ctx) => _HotelDetailSheet(hotel: hotel, appState: widget.appState),
     );
   }
 
@@ -265,14 +269,16 @@ class _StayScreenState extends State<StayScreen> {
                                     ],
                                   ),
                                 ),
-                                PillBadge(
-                                  text: h.zone.replaceAll("_", " "),
-                                  variant: isZoneC
-                                      ? PillVariant.live
-                                      : h.pressureLevel == PressureLevel.WATCH
-                                          ? PillVariant.watch
-                                          : PillVariant.critical,
-                                  fontSize: 10,
+                                Flexible(
+                                  child: PillBadge(
+                                    text: h.zone.replaceAll("_", " "),
+                                    variant: isZoneC
+                                        ? PillVariant.live
+                                        : h.pressureLevel == PressureLevel.WATCH
+                                            ? PillVariant.watch
+                                            : PillVariant.critical,
+                                    fontSize: 10,
+                                  ),
                                 ),
                               ],
                             ),
@@ -560,8 +566,9 @@ class _StayScreenState extends State<StayScreen> {
 
 class _HotelDetailSheet extends StatefulWidget {
   final Hotel hotel;
+  final AppState appState;
 
-  const _HotelDetailSheet({required this.hotel});
+  const _HotelDetailSheet({required this.hotel, required this.appState});
 
   @override
   State<_HotelDetailSheet> createState() => _HotelDetailSheetState();
@@ -895,11 +902,25 @@ class _HotelDetailSheetState extends State<_HotelDetailSheet> {
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: () {
-                          Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text("Routing to ${h.name} (${h.travelTimeToVenue} mins to Wankhede)..."),
-                              duration: const Duration(seconds: 2),
+                          final double lat = h.latitude ?? 18.9272;
+                          final double lng = h.longitude ?? 72.8205;
+                          final mapDest = MapDestination(
+                            id: h.id,
+                            name: h.name,
+                            address: h.address,
+                            location: LatLng(lat, lng),
+                            type: DestinationType.HOTEL,
+                          );
+
+                          Navigator.pop(context); // Close bottom modal
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => DestinationRouteScreen(
+                                destination: mapDest,
+                                origin: MapDestination.wankhedeStadium,
+                                appState: widget.appState,
+                              ),
                             ),
                           );
                         },
@@ -918,16 +939,30 @@ class _HotelDetailSheetState extends State<_HotelDetailSheet> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text("Reserved room at ${h.name}! Confirmation sent to your profile."),
-                              duration: const Duration(seconds: 2),
-                            ),
-                          );
+                        onPressed: () async {
+                          final url = h.bookingUrl;
+                          if (url == null || url.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text("Official booking link unavailable for this simulated property."),
+                              ),
+                            );
+                            return;
+                          }
+                          final opened = await MapsLauncherService.openExternalUrl(url);
+                          if (context.mounted) {
+                            if (opened) {
+                              Navigator.pop(context);
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text("Unable to open hotel booking website."),
+                                ),
+                              );
+                            }
+                          }
                         },
-                        icon: const Icon(Icons.check_circle_outline, size: 18),
+                        icon: const Icon(Icons.open_in_new_rounded, size: 18),
                         label: const Text("Book Room"),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppTheme.yellow,

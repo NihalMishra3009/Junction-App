@@ -1,6 +1,7 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import '../models/types.dart';
 import '../data/mock_data.dart';
+import '../services/backend_scenario_sync_service.dart';
 
 class AppState extends ChangeNotifier {
   ScenarioId _activeScenario = ScenarioId.NORMAL;
@@ -11,15 +12,129 @@ class AppState extends ChangeNotifier {
   String _attendeeRecommendationMessage =
       "Organizer recommendation: Dadar Station route has lower predicted crowd pressure.";
 
+  bool _isSyncing = false;
+  int _lastScenarioVersion = 0;
+
   UserProfile? _currentUser;
 
   final List<String> _closedLoopEvents = [];
+
+  AppState() {
+    _initBackendSync();
+  }
+
+  void _initBackendSync() {
+    syncWithBackend();
+    BackendScenarioSyncService().startLiveSync((update) {
+      _applyScenarioUpdate(update);
+    });
+  }
+
+  Future<bool> syncWithBackend({bool showFeedback = false, BuildContext? context}) async {
+    _isSyncing = true;
+    notifyListeners();
+
+    try {
+      final update = await BackendScenarioSyncService().fetchActiveScenario();
+      _isSyncing = false;
+
+      if (update != null) {
+        _applyScenarioUpdate(update);
+
+        if (showFeedback && context != null && context.mounted) {
+          ScaffoldMessenger.of(context).clearSnackBars();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("Backend synced: ${_activeScenario.displayName} (v${update.scenarioVersion})"),
+              duration: const Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: const Color(0xFF10B981),
+            ),
+          );
+        }
+        return true;
+      } else {
+        notifyListeners();
+        if (showFeedback && context != null && context.mounted) {
+          ScaffoldMessenger.of(context).clearSnackBars();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Couldn't refresh. Showing last available data."),
+              duration: Duration(seconds: 3),
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: Color(0xFFEF4444),
+            ),
+          );
+        }
+        return false;
+      }
+    } catch (e) {
+      _isSyncing = false;
+      notifyListeners();
+      if (showFeedback && context != null && context.mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Couldn't refresh. Showing last available data."),
+            duration: Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: Color(0xFFEF4444),
+          ),
+        );
+      }
+      return false;
+    }
+  }
+
+  bool _applyScenarioUpdate(BackendScenarioUpdate update) {
+    bool changed = false;
+    if (update.activeScenario != _activeScenario) {
+      _activeScenario = update.activeScenario;
+      _attendeeSelectedRouteId = null;
+      changed = true;
+
+      if (_activeScenario == ScenarioId.POST_EVENT_SURGE) {
+        _hasAttendeeRecommendation = true;
+        _attendeeRecommendationMessage =
+            "Post-match exit surge active: Churchgate at 94% pressure. Dadar route recommended with dedicated shuttle connection.";
+      } else if (_activeScenario == ScenarioId.TRANSPORT_DISRUPTION) {
+        _hasAttendeeRecommendation = true;
+        _attendeeRecommendationMessage =
+            "Western Railway disruption reported. Dadar or CSMT alternate corridors active.";
+      } else {
+        _hasAttendeeRecommendation = _isRec1Approved;
+      }
+      _addClosedLoopEvent("Synced active scenario from backend: ${_activeScenario.displayName}");
+    }
+
+    if (update.isRec1Approved != _isRec1Approved) {
+      _isRec1Approved = update.isRec1Approved;
+      _hasAttendeeRecommendation = _isRec1Approved;
+      changed = true;
+      if (_isRec1Approved) {
+        _attendeeRecommendationMessage =
+            "Organizer recommendation active: Visitors redirected toward Dadar to reduce Churchgate choke point.";
+      }
+    }
+
+    if (update.scenarioVersion != _lastScenarioVersion) {
+      _lastScenarioVersion = update.scenarioVersion;
+      changed = true;
+    }
+
+    if (changed) {
+      notifyListeners();
+    }
+    return changed;
+  }
 
   ScenarioId get activeScenario => _activeScenario;
   int get currentTabIndex => _currentTabIndex;
   String? get attendeeSelectedRouteId => _attendeeSelectedRouteId;
   bool get isRec1Approved => _isRec1Approved;
   bool get hasAttendeeRecommendation => _hasAttendeeRecommendation;
+  bool get isSyncing => _isSyncing;
+  int get lastScenarioVersion => _lastScenarioVersion;
   String get attendeeRecommendationMessage => _attendeeRecommendationMessage;
   List<String> get closedLoopEvents => List.unmodifiable(_closedLoopEvents);
 

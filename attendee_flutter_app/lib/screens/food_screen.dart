@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:latlong2/latlong.dart';
+import '../models/map_destination.dart';
 import '../models/types.dart';
+import 'destination_route_screen.dart';
+import '../services/maps_launcher.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/pill_badge.dart';
@@ -16,8 +20,8 @@ class FoodScreen extends StatefulWidget {
 }
 
 class _FoodScreenState extends State<FoodScreen> {
-  String _selectedZone = "ALL";
-  bool _onlyDeals = false;
+  final String _selectedZone = "ALL";
+  final bool _onlyDeals = false;
 
   Color _waitColor(int waitTime) {
     if (waitTime > 30) return AppTheme.red;
@@ -30,7 +34,7 @@ class _FoodScreenState extends State<FoodScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => _RestaurantDetailSheet(restaurant: r),
+      builder: (ctx) => _RestaurantDetailSheet(restaurant: r, appState: widget.appState),
     );
   }
 
@@ -72,45 +76,7 @@ class _FoodScreenState extends State<FoodScreen> {
           ).animate().fadeIn(delay: 100.ms),
           const SizedBox(height: 16),
 
-          // Quick Filter chips
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                _buildFilterChip("All Spots", _selectedZone == "ALL" && !_onlyDeals, () {
-                  setState(() {
-                    _selectedZone = "ALL";
-                    _onlyDeals = false;
-                  });
-                }),
-                const SizedBox(width: 8),
-                _buildFilterChip("Match Offers Only", _onlyDeals, () {
-                  setState(() {
-                    _onlyDeals = !_onlyDeals;
-                  });
-                }),
-                const SizedBox(width: 8),
-                _buildFilterChip("Zone C (Low Crowd)", _selectedZone == "ZONE_C", () {
-                  setState(() {
-                    _selectedZone = _selectedZone == "ZONE_C" ? "ALL" : "ZONE_C";
-                  });
-                }),
-                const SizedBox(width: 8),
-                _buildFilterChip("Zone B (Ballard Estate)", _selectedZone == "ZONE_B", () {
-                  setState(() {
-                    _selectedZone = _selectedZone == "ZONE_B" ? "ALL" : "ZONE_B";
-                  });
-                }),
-                const SizedBox(width: 8),
-                _buildFilterChip("Zone A (Near Stadium)", _selectedZone == "ZONE_A", () {
-                  setState(() {
-                    _selectedZone = _selectedZone == "ZONE_A" ? "ALL" : "ZONE_A";
-                  });
-                }),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
+
 
           ...List.generate(restaurants.length, (idx) {
             final r = restaurants[idx];
@@ -363,42 +329,6 @@ class _FoodScreenState extends State<FoodScreen> {
                               ],
                             ),
 
-                            if (r.hasIncentive && r.incentiveLabel != null) ...[
-                              const SizedBox(height: 12),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 8,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: AppTheme.yellowLight,
-                                  borderRadius: BorderRadius.circular(AppTheme.radiusSm),
-                                  border: Border.all(
-                                    color: AppTheme.yellow.withValues(alpha: 0.5),
-                                  ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    const Icon(Icons.local_offer_outlined, size: 14, color: AppTheme.ink),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        r.incentiveLabel!,
-                                        style: AppTheme.displayFont(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    ),
-                                    const PillBadge(
-                                      text: "MATCH PASS DEAL",
-                                      variant: PillVariant.yellow,
-                                      fontSize: 8,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
                           ],
                         ),
                       ),
@@ -418,36 +348,14 @@ class _FoodScreenState extends State<FoodScreen> {
     );
   }
 
-  Widget _buildFilterChip(String label, bool isSelected, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-        decoration: BoxDecoration(
-          color: isSelected ? AppTheme.ink : AppTheme.white,
-          borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-          border: Border.all(
-            color: isSelected ? AppTheme.ink : AppTheme.neutral,
-          ),
-          boxShadow: isSelected ? AppTheme.shadowSm : null,
-        ),
-        child: Text(
-          label,
-          style: AppTheme.displayFont(
-            fontSize: 11,
-            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-            color: isSelected ? AppTheme.white : AppTheme.ink,
-          ),
-        ),
-      ),
-    );
-  }
+
 }
 
 class _RestaurantDetailSheet extends StatefulWidget {
   final Restaurant restaurant;
+  final AppState appState;
 
-  const _RestaurantDetailSheet({required this.restaurant});
+  const _RestaurantDetailSheet({required this.restaurant, required this.appState});
 
   @override
   State<_RestaurantDetailSheet> createState() => _RestaurantDetailSheetState();
@@ -826,11 +734,54 @@ class _RestaurantDetailSheetState extends State<_RestaurantDetailSheet> {
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: () {
-                          Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text("Routing to ${r.name} in Zone ${r.zone}..."),
-                              duration: const Duration(seconds: 2),
+                          final double? lat = r.latitude;
+                          final double? lng = r.longitude;
+
+                          if (lat == null || lng == null) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text("Restaurant location unavailable"),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                            return;
+                          }
+
+                          final origin = MapDestination.wankhedeStadium;
+                          assert(
+                            lat != origin.location.latitude || lng != origin.location.longitude,
+                            "Origin and Destination coordinates must be distinct!",
+                          );
+
+                          debugPrint("""
+NAVIGATION REQUEST
+
+Origin:
+${origin.name}
+${origin.location.latitude}, ${origin.location.longitude}
+
+Destination:
+${r.name}
+$lat, $lng
+""");
+
+                          final mapDest = MapDestination(
+                            id: r.id,
+                            name: r.name,
+                            address: r.address,
+                            location: LatLng(lat, lng),
+                            type: DestinationType.RESTAURANT,
+                          );
+
+                          Navigator.pop(context); // Close bottom modal
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => DestinationRouteScreen(
+                                destination: mapDest,
+                                origin: MapDestination.wankhedeStadium,
+                                appState: widget.appState,
+                              ),
                             ),
                           );
                         },
@@ -849,14 +800,28 @@ class _RestaurantDetailSheetState extends State<_RestaurantDetailSheet> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text("Reserved priority table at ${r.name}!"),
-                              duration: const Duration(seconds: 2),
-                            ),
-                          );
+                        onPressed: () async {
+                          final url = r.reservationUrl ?? r.websiteUrl;
+                          if (url == null || url.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text("Table reservation link is not available for this restaurant."),
+                              ),
+                            );
+                            return;
+                          }
+                          final opened = await MapsLauncherService.openExternalUrl(url);
+                          if (context.mounted) {
+                            if (opened) {
+                              Navigator.pop(context);
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text("Unable to open restaurant reservation website."),
+                                ),
+                              );
+                            }
+                          }
                         },
                         icon: const Icon(Icons.table_restaurant, size: 18),
                         label: const Text("Reserve Table"),

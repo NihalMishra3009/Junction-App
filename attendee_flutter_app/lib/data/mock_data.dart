@@ -1,6 +1,36 @@
 import '../models/types.dart';
+import '../services/scenario_intelligence_service.dart';
 
 class MockData {
+  static EventInfo getEventInfo(ScenarioId scenario) {
+    if (scenario == ScenarioId.EVENT_DELAY) {
+      return const EventInfo(
+        id: "EVT1",
+        name: "Mumbai T20 Super League · Final",
+        venue: "Wankhede Stadium, Mumbai",
+        date: "Today",
+        startTime: "20:00 (Delayed +30m)",
+        endTime: "23:00",
+        totalCapacity: 33000,
+        ticketsSold: 33000,
+        status: "DELAYED (+30M)",
+        allocatedGate: "Gate 3 (South)",
+      );
+    }
+    return const EventInfo(
+      id: "EVT1",
+      name: "Mumbai T20 Super League · Final",
+      venue: "Wankhede Stadium, Mumbai",
+      date: "Today",
+      startTime: "19:30",
+      endTime: "22:30",
+      totalCapacity: 33000,
+      ticketsSold: 33000,
+      status: "LIVE",
+      allocatedGate: "Gate 3 (South)",
+    );
+  }
+
   static const EventInfo eventInfo = EventInfo(
     id: "EVT1",
     name: "Mumbai T20 Super League · Final",
@@ -21,21 +51,68 @@ class MockData {
     final bool isDisrupted = scenario == ScenarioId.TRANSPORT_DISRUPTION;
     final bool isSurge = scenario == ScenarioId.POST_EVENT_SURGE;
     final bool isRain = scenario == ScenarioId.HEAVY_RAIN;
+    final bool isDelay = scenario == ScenarioId.EVENT_DELAY;
+
+    // Under POST_EVENT_SURGE or TRANSPORT_DISRUPTION or HEAVY_RAIN, BALANCED or LOW_CROWD receives higher suitability!
+    bool balancedIsRecommended = true;
+    bool lowCrowdIsRecommended = false;
+    bool fastestIsRecommended = false;
+
+    if (isSurge) {
+      balancedIsRecommended = true;
+    } else if (isDisrupted) {
+      balancedIsRecommended = true;
+    } else if (isRain) {
+      balancedIsRecommended = true;
+    } else if (scenario == ScenarioId.NORMAL && !redistApproved) {
+      // In normal ops without redistribution, balanced is recommended for crowd safety
+      balancedIsRecommended = true;
+    }
+
+    final int fastestTime = isDisrupted ? 45 : isSurge ? 42 : isRain ? 32 : 24;
+    final int balancedTime = isRain ? 38 : 31;
+    final int lowCrowdTime = isDisrupted ? 62 : isSurge ? 52 : 48;
+
+    final String fastestExplanation = isDisrupted
+        ? "Western Railway disruption detected. Direct route via Churchgate incurs severe platform backlog & low reliability."
+        : isSurge
+            ? "Shortest distance but passes directly through 94% Churchgate choke point during post-event exit surge."
+            : isRain
+                ? "Direct road corridor exposed to street flooding & heavy traffic slowdowns."
+                : "Direct via CSMT/Churchgate. Shortest baseline time, but higher crowd congestion at peak exit.";
+
+    final String balancedExplanation = redistApproved
+        ? "★ JUNCTION RECOMMENDED BY ORGANIZER: Dadar corridor provides optimal balance — 40% lower crowd pressure with active electric shuttle lanes."
+        : isDisrupted
+            ? "★ JUNCTION RECOMMENDED: Western Railway disruption detected. This route bypasses Western Line and uses Central Line via Dadar hub."
+            : isSurge
+                ? "★ JUNCTION RECOMMENDED: Post-event exit surge active. Bypasses Churchgate bottleneck via Dadar dedicated shuttle lane."
+                : isRain
+                    ? "★ JUNCTION RECOMMENDED: Heavy rain detected. Uses covered concourses and weather-protected express shuttles."
+                    : isDelay
+                        ? "★ JUNCTION RECOMMENDED: Match start delayed by 30 mins. Provides optimal relaxed arrival timing."
+                        : "★ JUNCTION RECOMMENDED: Dadar corridor provides the best operational balance — minimal extra time with 40% lower crowd exposure.";
+
+    final String lowCrowdExplanation = isDisrupted
+        ? "Avoids all primary transit bottlenecks via Marine Lines, but requires a significant time detour (62 mins)."
+        : isSurge
+            ? "Lowest crowd pressure route, bypassing both Churchgate and CSMT. Takes longer but guarantees a relaxed commute."
+            : "Minimizes crowd exposure via coastal promenade path, but creates a detour from current location.";
 
     return [
       AttendeeRoute(
         id: "FASTEST",
         type: "FASTEST",
         label: "Fastest",
-        totalTime: isDisrupted ? 38 : isSurge ? 42 : 24,
-        crowdLevel: "HIGH",
+        totalTime: fastestTime,
+        crowdLevel: isSurge || isDisrupted ? "CRITICAL" : "HIGH",
         congestionLevel: isDisrupted ? "HIGH" : "HIGH",
         transfers: 1,
         walkingTime: 5,
         reliability: isDisrupted ? "LOW" : "HIGH",
-        recommended: false,
-        steps: [
-          const RouteStep(
+        recommended: fastestIsRecommended,
+        steps: const [
+          RouteStep(
             from: "Harbour Line Origin",
             to: "Vadala Road Station",
             mode: "WALK",
@@ -43,7 +120,7 @@ class MockData {
             distance: "400 m",
             instruction: "Walk via station east skywalk to ticket counters.",
           ),
-          const RouteStep(
+          RouteStep(
             from: "Vadala Road",
             to: "CSMT Station",
             mode: "RAIL",
@@ -51,37 +128,35 @@ class MockData {
             lineName: "Harbour Line Fast Local",
             platform: "Platform 1",
             distance: "9.8 km",
-            instruction: "Board CSMT-bound Fast Local. Alight at CSMT terminus (Platform 1).",
+            instruction: "Board CSMT-bound Fast Local. Alight at CSMT terminus.",
             frequency: "Every 4 mins",
             stops: ["Vadala Road", "Sewri", "Cotton Green", "Reay Road", "Dockyard Road", "Sandhurst Road", "CSMT"],
             crowdStatus: "High Crowd · Peak match flow",
           ),
-          const RouteStep(
+          RouteStep(
             from: "CSMT Station",
             to: "Wankhede Stadium (Gate 3)",
             mode: "WALK",
             duration: 7,
             lineName: "Event Pedestrian Walkway",
             distance: "1.1 km",
-            instruction: "Exit CSMT West Gate 1 -> Follow Mahapalika Marg & D Road directly to Gate 3 (South Entrance).",
+            instruction: "Exit CSMT West Gate 1 -> Follow Mahapalika Marg directly to Gate 3.",
           ),
         ],
-        explanation: isDisrupted
-            ? "Western Railway is disrupted. CSMT via Central line remains available but will be congested."
-            : "Direct via CSMT but Churchgate and surrounding roads are heavily congested around match time.",
-        score: 62,
+        explanation: fastestExplanation,
+        score: isDisrupted ? 42 : isSurge ? 52 : 68,
       ),
       AttendeeRoute(
         id: "BALANCED",
         type: "BALANCED",
         label: "Balanced",
-        totalTime: isRain ? 38 : 31,
-        crowdLevel: redistApproved ? "LOW" : "MEDIUM",
+        totalTime: balancedTime,
+        crowdLevel: redistApproved ? "LOW" : (isSurge ? "MEDIUM" : "LOW"),
         congestionLevel: "LOW",
         transfers: 1,
         walkingTime: isRain ? 4 : 8,
         reliability: "HIGH",
-        recommended: true,
+        recommended: balancedIsRecommended,
         steps: [
           const RouteStep(
             from: "Harbour Line Origin",
@@ -112,27 +187,25 @@ class MockData {
             lineName: "BEST AC Event Express Shuttle #Special-7",
             platform: "Bay 2 (Dadar TT Circle)",
             distance: "9.2 km",
-            instruction: "Board AC Electric Shuttle. Runs on dedicated event corridor directly to Gate 3 South Drop-off.",
-            frequency: "Every 5 mins (Dedicated Event Lane)",
+            instruction: "Board AC Electric Shuttle. Runs on dedicated event corridor directly to Gate 3.",
+            frequency: "Every 3 mins (Dedicated Event Lane)",
             crowdStatus: "Guaranteed Seating · Bypasses Churchgate bottleneck",
           ),
         ],
-        explanation: redistApproved
-            ? "Recommended by the event organizer. Dadar provides the best overall balance — only 7 minutes longer than fastest, with 40% lower crowd pressure and active shuttle lanes."
-            : "Churchgate currently has high crowd pressure. Dadar provides the best overall balance — only 7 minutes longer than the fastest route, with noticeably lower crowd pressure.",
-        score: redistApproved ? 91 : 87,
+        explanation: balancedExplanation,
+        score: redistApproved ? 95 : isSurge ? 92 : 88,
       ),
       AttendeeRoute(
         id: "LOW_CROWD",
         type: "LOW_CROWD",
         label: "Low Crowd",
-        totalTime: isDisrupted ? 62 : 48,
+        totalTime: lowCrowdTime,
         crowdLevel: "LOW",
         congestionLevel: "LOW",
         transfers: 2,
         walkingTime: 12,
-        reliability: "MEDIUM",
-        recommended: false,
+        reliability: "HIGH",
+        recommended: lowCrowdIsRecommended,
         steps: const [
           RouteStep(
             from: "Harbour Line Origin",
@@ -150,7 +223,7 @@ class MockData {
             lineName: "Western Suburban Slow Local",
             platform: "Platform 3",
             distance: "14.5 km",
-            instruction: "Board Slow Local toward Churchgate. Alight at Marine Lines (1 station before Churchgate).",
+            instruction: "Board Slow Local toward Churchgate. Alight at Marine Lines.",
             frequency: "Every 6 mins",
             stops: ["Bandra", "Mahim", "Matunga Rd", "Dadar West", "Prabhadevi", "Lower Parel", "Mahalakshmi", "Mumbai Central", "Grant Rd", "Charni Rd", "Marine Lines"],
             crowdStatus: "Low Crowd · Relaxed and seated transit",
@@ -162,18 +235,28 @@ class MockData {
             duration: 12,
             lineName: "Marine Drive Promenade Path",
             distance: "850 m",
-            instruction: "Exit Marine Lines East -> Walk along the open Marine Drive sea-view walkway -> Gate 3 South Entrance.",
+            instruction: "Exit Marine Lines East -> Walk along open Marine Drive sea-view walkway to Gate 3.",
           ),
         ],
-        explanation:
-            "Lower crowd pressure via Marine Lines but creates a detour from your current location — 24 minutes longer than the Balanced option. The time cost outweighs the crowd benefit for your origin.",
-        score: 51,
+        explanation: lowCrowdExplanation,
+        score: isSurge ? 82 : 58,
       ),
     ];
   }
 
   static List<Hotel> getHotels(ScenarioId scenario) {
     final bool isSat = scenario == ScenarioId.ACCOMMODATION_SATURATION;
+    final bool isSurge = scenario == ScenarioId.POST_EVENT_SURGE;
+    final bool isDisrupted = scenario == ScenarioId.TRANSPORT_DISRUPTION;
+    final bool isRain = scenario == ScenarioId.HEAVY_RAIN;
+
+    // Zone A & B pressure multiplier under saturation / surge / disruption
+    final int zoneAPressure = isSat ? 96 : isSurge ? 94 : isDisrupted ? 88 : isRain ? 82 : 78;
+    final int zoneBPressure = isSat ? 92 : isSurge ? 86 : isDisrupted ? 84 : 72;
+    final int zoneCPressure = isSat ? 48 : isSurge ? 44 : 38;
+
+    final int zoneAAvail = isSat ? 2 : isSurge ? 4 : 8;
+    final int zoneBAvail = isSat ? 3 : isSurge ? 5 : 12;
 
     return [
       Hotel(
@@ -181,23 +264,27 @@ class MockData {
         name: "Trident Nariman Point",
         zone: "ZONE_A",
         totalRooms: 540,
-        availableRooms: isSat ? 4 : 12,
-        usableRooms: isSat ? 2 : 8,
+        availableRooms: zoneAAvail,
+        usableRooms: (zoneAAvail * 0.75).round(),
         expectedCheckIns: 24,
         expectedCheckOuts: 18,
-        travelTimeToVenue: 12,
-        pressure: isSat ? 96 : 91,
-        pressureLevel: PressureLevel.CRITICAL,
+        travelTimeToVenue: isRain ? 18 : 12,
+        pressure: zoneAPressure,
+        pressureLevel: zoneAPressure >= 85 ? PressureLevel.CRITICAL : PressureLevel.HIGH,
         transportConnectivity: "EXCELLENT",
         eventDemand: "VERY_HIGH",
         source: "SIMULATED",
-        priceRange: "₹18,000 – ₹32,000",
+        priceRange: isSat ? "₹28,000 – ₹45,000" : "₹18,000 – ₹32,000",
         imageUrl: "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=800&q=80",
         rating: 4.8,
         reviewsCount: 4210,
-        address: "CR 2 Nariman Point, Netaji Subhash Chandra Bose Rd, Mumbai",
+        address: "Nariman Point, Mumbai, Maharashtra 400021",
         shuttleInfo: "Walking distance to Gate 3 & Wankhede Promenade (10 min)",
         phone: "+91 22 6632 4343",
+        latitude: 18.9272,
+        longitude: 72.8205,
+        googleMapsPlaceId: "ChIJy--rLrfR5zsRoU_k5kX_H1Y",
+        bookingUrl: "https://www.tridenthotels.com/hotels-in-mumbai-nariman-point",
         amenities: const [
           HotelAmenity(icon: "🌊", name: "Arabian Sea View"),
           HotelAmenity(icon: "🏊", name: "Infinity Pool"),
@@ -214,23 +301,27 @@ class MockData {
         name: "Intercontinental Marine Drive",
         zone: "ZONE_A",
         totalRooms: 410,
-        availableRooms: isSat ? 2 : 6,
-        usableRooms: isSat ? 1 : 4,
+        availableRooms: zoneAAvail + 1,
+        usableRooms: zoneAAvail,
         expectedCheckIns: 19,
         expectedCheckOuts: 12,
-        travelTimeToVenue: 15,
-        pressure: isSat ? 94 : 88,
-        pressureLevel: PressureLevel.HIGH,
+        travelTimeToVenue: isRain ? 22 : 15,
+        pressure: zoneAPressure - 2,
+        pressureLevel: (zoneAPressure - 2) >= 85 ? PressureLevel.CRITICAL : PressureLevel.HIGH,
         transportConnectivity: "EXCELLENT",
         eventDemand: "VERY_HIGH",
         source: "SIMULATED",
-        priceRange: "₹14,000 – ₹28,000",
+        priceRange: isSat ? "₹24,000 – ₹38,000" : "₹14,000 – ₹28,000",
         imageUrl: "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=800&q=80",
         rating: 4.7,
         reviewsCount: 3180,
-        address: "135 Marine Drive, Churchgate, Mumbai",
+        address: "135 Marine Drive, Churchgate, Mumbai, Maharashtra 400020",
         shuttleInfo: "5-minute stroll to Wankhede Gate 3 South Entry",
         phone: "+91 22 3987 9999",
+        latitude: 18.9348,
+        longitude: 72.8239,
+        googleMapsPlaceId: "ChIJT6v0g7bR5zsRP85l0XgGg7s",
+        bookingUrl: "https://www.ihg.com/intercontinental/hotels/us/en/mumbai/bomhb/hoteldetail",
         amenities: const [
           HotelAmenity(icon: "🍸", name: "Dome Rooftop Lounge"),
           HotelAmenity(icon: "💆", name: "Ayurvedic Spa"),
@@ -247,13 +338,13 @@ class MockData {
         name: "Hotel Marine Plaza",
         zone: "ZONE_B",
         totalRooms: 68,
-        availableRooms: isSat ? 3 : 9,
-        usableRooms: isSat ? 2 : 7,
+        availableRooms: zoneBAvail,
+        usableRooms: (zoneBAvail * 0.8).round(),
         expectedCheckIns: 11,
         expectedCheckOuts: 8,
         travelTimeToVenue: 18,
-        pressure: isSat ? 86 : 74,
-        pressureLevel: isSat ? PressureLevel.HIGH : PressureLevel.WATCH,
+        pressure: zoneBPressure,
+        pressureLevel: zoneBPressure >= 85 ? PressureLevel.CRITICAL : PressureLevel.HIGH,
         transportConnectivity: "GOOD",
         eventDemand: "HIGH",
         source: "SIMULATED",
@@ -261,9 +352,13 @@ class MockData {
         imageUrl: "https://images.unsplash.com/photo-1571003123894-1f0594d2b5d9?auto=format&fit=crop&w=800&q=80",
         rating: 4.4,
         reviewsCount: 1950,
-        address: "29 Marine Drive, Churchgate, Mumbai",
+        address: "29 Marine Drive, Churchgate, Mumbai, Maharashtra 400020",
         shuttleInfo: "8 min direct transfer / 12 min walking path",
         phone: "+91 22 2285 1212",
+        latitude: 18.9312,
+        longitude: 72.8234,
+        googleMapsPlaceId: "ChIJ9Z_k77bR5zsRB891-xgHg7t",
+        bookingUrl: "https://www.hotelmarineplaza.com/",
         amenities: const [
           HotelAmenity(icon: "🏊", name: "Glass Rooftop Pool"),
           HotelAmenity(icon: "☕", name: "The Bayview 24/7"),
@@ -280,23 +375,25 @@ class MockData {
         name: "Ramada by Wyndham Dadar",
         zone: "ZONE_C",
         totalRooms: 250,
-        availableRooms: 62,
-        usableRooms: 48,
+        availableRooms: 68,
+        usableRooms: 54,
         expectedCheckIns: 27,
         expectedCheckOuts: 14,
         travelTimeToVenue: 22,
-        pressure: 52,
+        pressure: zoneCPressure,
         pressureLevel: PressureLevel.NORMAL,
-        transportConnectivity: "GOOD",
-        eventDemand: "MODERATE",
+        transportConnectivity: "EXCELLENT",
+        eventDemand: "HIGH",
         source: "SIMULATED",
         priceRange: "₹4,500 – ₹8,000",
         imageUrl: "https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=800&q=80",
-        rating: 4.6,
+        rating: 4.8,
         reviewsCount: 2840,
-        address: "Millenium Business Park, Senapati Bapat Marg, Dadar West, Mumbai",
+        address: "Millenium Business Park, Senapati Bapat Marg, Dadar West, Mumbai 400028",
         shuttleInfo: "Dedicated Junction Express Shuttle to Wankhede (20 mins)",
         phone: "+91 22 2419 8888",
+        latitude: 19.0180,
+        longitude: 72.8430,
         amenities: const [
           HotelAmenity(icon: "🚌", name: "Dedicated Venue Shuttle"),
           HotelAmenity(icon: "🎟", name: "Match Pass 15% OFF"),
@@ -313,23 +410,27 @@ class MockData {
         name: "Hotel Kohinoor Dadar",
         zone: "ZONE_C",
         totalRooms: 180,
-        availableRooms: 38,
-        usableRooms: 31,
+        availableRooms: 42,
+        usableRooms: 36,
         expectedCheckIns: 18,
         expectedCheckOuts: 9,
         travelTimeToVenue: 25,
-        pressure: 48,
+        pressure: zoneCPressure - 4,
         pressureLevel: PressureLevel.NORMAL,
         transportConnectivity: "GOOD",
-        eventDemand: "LOW",
+        eventDemand: "MODERATE",
         source: "SIMULATED",
         priceRange: "₹3,200 – ₹6,000",
         imageUrl: "https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=800&q=80",
-        rating: 4.3,
+        rating: 4.4,
         reviewsCount: 1620,
-        address: "Opposite Siddhivinayak Temple Road, Dadar East, Mumbai",
+        address: "Kohinoor Bhavan, Dadar East, Mumbai, Maharashtra 400014",
         shuttleInfo: "2 min walk to Dadar Central Station -> Fast local to CSMT",
         phone: "+91 22 2410 7777",
+        latitude: 19.0191,
+        longitude: 72.8436,
+        googleMapsPlaceId: "ChIJVVVV5LTR5zsRwX_k5kX_H1Z",
+        bookingUrl: "https://hotelkohinoorpark.com/",
         amenities: const [
           HotelAmenity(icon: "🚆", name: "200m from Dadar Station"),
           HotelAmenity(icon: "🥞", name: "Traditional Maharashtrian Buffet"),
@@ -345,20 +446,35 @@ class MockData {
   }
 
   static List<Restaurant> getRestaurants(ScenarioId scenario) {
-    return const [
+    final bool isSurge = scenario == ScenarioId.POST_EVENT_SURGE;
+    final bool isDelay = scenario == ScenarioId.EVENT_DELAY;
+
+    final int r1Wait = isSurge ? 75 : isDelay ? 40 : 55;
+    final int r1PredWait = isSurge ? 95 : isDelay ? 60 : 75;
+    final int r1Pressure = isSurge ? 98 : isDelay ? 78 : 91;
+
+    final int r2Wait = isSurge ? 60 : isDelay ? 35 : 42;
+    final int r2PredWait = isSurge ? 80 : isDelay ? 50 : 60;
+    final int r2Pressure = isSurge ? 92 : isDelay ? 72 : 84;
+
+    final int r4Wait = isSurge ? 8 : isDelay ? 12 : 5;
+    final int r4PredWait = isSurge ? 14 : isDelay ? 18 : 12;
+    final int r4Pressure = isSurge ? 38 : isDelay ? 42 : 46;
+
+    return [
       Restaurant(
         id: "R1",
         name: "Trishna",
         cuisine: "Coastal Seafood & Mangalorean",
         zone: "ZONE_A",
         capacity: 80,
-        currentOccupancy: 76,
-        availableTables: 2,
-        waitTime: 55,
-        predictedWaitTime: 75,
+        currentOccupancy: (80 * (r1Pressure / 100)).round(),
+        availableTables: isSurge ? 0 : 2,
+        waitTime: r1Wait,
+        predictedWaitTime: r1PredWait,
         distanceFromVenue: 8,
-        pressure: 91,
-        pressureLevel: PressureLevel.CRITICAL,
+        pressure: r1Pressure,
+        pressureLevel: r1Pressure >= 85 ? PressureLevel.CRITICAL : PressureLevel.HIGH,
         source: "SIMULATED",
         hasIncentive: false,
         recommended: false,
@@ -368,9 +484,14 @@ class MockData {
         address: "7, Sai Baba Marg, Kala Ghoda, Fort, Mumbai",
         openingHours: "12:00 PM – 3:30 PM, 6:30 PM – 12:00 AM",
         phone: "+91 22 2270 3208",
-        menuItems: [
+        latitude: 18.9281,
+        longitude: 72.8318,
+        googleMapsPlaceId: "ChIJ-x3iGbbR5zsRoU_k5kX_H1a",
+        websiteUrl: "https://www.trishna.co.in",
+        reservationUrl: "https://www.trishna.co.in",
+        menuItems: const [
           MenuItem(name: "Butter Pepper Garlic Crab", price: "₹1,850", description: "Iconic signature jumbo mud crab in garlic butter sauce", isVeg: false, isSpecial: true),
-          MenuItem(name: "Koliwada Prawns", price: "₹720", description: "Crispy Mumbai fisherfolk spiced spiced fried prawns", isVeg: false),
+          MenuItem(name: "Koliwada Prawns", price: "₹720", description: "Crispy Mumbai fisherfolk spiced fried prawns", isVeg: false),
           MenuItem(name: "Neer Dosa (4 pcs)", price: "₹180", description: "Delicate coastal rice crepes served with coconut chutney", isVeg: true),
           MenuItem(name: "Hyderabadi Fish Biryani", price: "₹680", description: "Fragrant spiced basmati with fresh kingfish fillet", isVeg: false),
         ],
@@ -381,13 +502,13 @@ class MockData {
         cuisine: "Street Grill & Seekh Kebabs",
         zone: "ZONE_A",
         capacity: 60,
-        currentOccupancy: 54,
-        availableTables: 3,
-        waitTime: 42,
-        predictedWaitTime: 60,
+        currentOccupancy: (60 * (r2Pressure / 100)).round(),
+        availableTables: isSurge ? 1 : 3,
+        waitTime: r2Wait,
+        predictedWaitTime: r2PredWait,
         distanceFromVenue: 10,
-        pressure: 84,
-        pressureLevel: PressureLevel.HIGH,
+        pressure: r2Pressure,
+        pressureLevel: r2Pressure >= 85 ? PressureLevel.CRITICAL : PressureLevel.HIGH,
         source: "SIMULATED",
         hasIncentive: false,
         recommended: false,
@@ -397,7 +518,12 @@ class MockData {
         address: "Tulloch Road, Behind Taj Mahal Palace, Colaba, Mumbai",
         openingHours: "1:00 PM – 4:00 AM (Late Night)",
         phone: "+91 22 2284 8038",
-        menuItems: [
+        latitude: 18.9220,
+        longitude: 72.8327,
+        googleMapsPlaceId: "ChIJjX_k7bbR5zsRkU_k5kX_H1b",
+        websiteUrl: "https://bademiya.com",
+        reservationUrl: "https://bademiya.com",
+        menuItems: const [
           MenuItem(name: "Mutton Seekh Kebab Roll", price: "₹340", description: "Charcoal roasted spiced minced meat wrapped in rumali roti", isVeg: false, isSpecial: true),
           MenuItem(name: "Chicken Baida Roti", price: "₹290", description: "Crispy griddled egg and spiced chicken parcel with mint chutney", isVeg: false, isSpecial: true),
           MenuItem(name: "Paneer Bhuna Roll", price: "₹240", description: "Tandoori cottage cheese chunks in rich roasted onion gravy", isVeg: true),
@@ -419,14 +545,19 @@ class MockData {
         pressureLevel: PressureLevel.WATCH,
         source: "SIMULATED",
         hasIncentive: false,
-        recommended: true,
+        recommended: false,
         imageUrl: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=800&q=80",
         rating: 4.8,
         reviewsCount: 5120,
         address: "Wakefield House, 11 Sprott Rd, Ballard Estate, Fort, Mumbai",
         openingHours: "11:30 AM – 4:30 PM (Vintage Lunch Only)",
         phone: "+91 22 2261 5264",
-        menuItems: [
+        latitude: 18.9351,
+        longitude: 72.8392,
+        googleMapsPlaceId: "ChIJy-_k7bbR5zsRlU_k5kX_H1c",
+        websiteUrl: "https://www.zomato.com/mumbai/britannia-co-restaurant-fort",
+        reservationUrl: "https://www.zomato.com/mumbai/britannia-co-restaurant-fort/book",
+        menuItems: const [
           MenuItem(name: "Berry Pulao (Mutton / Chicken)", price: "₹650", description: "Legendary Iranian barberries over aromatic saffron rice & succulent meat", isVeg: false, isSpecial: true),
           MenuItem(name: "Salli Boti with Rotli", price: "₹480", description: "Slow-cooked sweet and sour mutton stew topped with crunchy potato straws", isVeg: false, isSpecial: true),
           MenuItem(name: "Caramel Custard", price: "₹180", description: "Classic 100-year old recipe silky vanilla custard with burnt sugar glaze", isVeg: true, isSpecial: true),
@@ -439,235 +570,39 @@ class MockData {
         cuisine: "Authentic South Indian & Filter Coffee",
         zone: "ZONE_C",
         capacity: 90,
-        currentOccupancy: 42,
+        currentOccupancy: (90 * (r4Pressure / 100)).round(),
         availableTables: 18,
-        waitTime: 5,
-        predictedWaitTime: 12,
+        waitTime: r4Wait,
+        predictedWaitTime: r4PredWait,
         distanceFromVenue: 24,
-        pressure: 46,
+        pressure: r4Pressure,
         pressureLevel: PressureLevel.NORMAL,
         source: "SIMULATED",
         hasIncentive: true,
-        incentiveLabel: "10% OFF for event guests",
-        recommended: true,
+        incentiveLabel: "10% OFF for match ticket holders",
+        recommended: true, // JUNCTION RECOMMENDS: Zone C low wait time
         imageUrl: "https://images.unsplash.com/photo-1610192244261-3f33de3f55e4?auto=format&fit=crop&w=800&q=80",
         rating: 4.9,
         reviewsCount: 8900,
         address: "38 B, Circle House, King's Circle, Matunga East, Mumbai",
         openingHours: "7:00 AM – 2:30 PM, 4:00 PM – 10:30 PM",
         phone: "+91 22 2401 4419",
-        menuItems: [
+        latitude: 19.0270,
+        longitude: 72.8533,
+        googleMapsPlaceId: "ChIJ-y3iGbbR5zsRmU_k5kX_H1d",
+        websiteUrl: "https://www.zomato.com/mumbai/cafe-madras-matunga-east",
+        reservationUrl: null,
+        menuItems: const [
           MenuItem(name: "Butter Idli Podi (3 pcs)", price: "₹130", description: "Fluffy steamed rice cakes bathed in pure melted butter & gun powder spice", isVeg: true, isSpecial: true),
           MenuItem(name: "Mysore Masala Dosa", price: "₹160", description: "Crisp golden crepe layered with fiery red chutney & spiced potato mash", isVeg: true, isSpecial: true),
-          MenuItem(name: "Rasam Vada", price: "₹110", description: "Crispy medu vada soaked in hot, tangy & peppery tomato rasam", isVeg: true),
-          MenuItem(name: "Degree Filter Kaapi", price: "₹65", description: "Authentic chicory brewed South Indian frothy coffee in brass dabarah", isVeg: true, isSpecial: true),
-        ],
-      ),
-      Restaurant(
-        id: "R5",
-        name: "Shalimar Restaurant",
-        cuisine: "Mughlai, Tandoor & Biryani",
-        zone: "ZONE_C",
-        capacity: 150,
-        currentOccupancy: 58,
-        availableTables: 25,
-        waitTime: 8,
-        predictedWaitTime: 15,
-        distanceFromVenue: 22,
-        pressure: 42,
-        pressureLevel: PressureLevel.NORMAL,
-        source: "SIMULATED",
-        hasIncentive: true,
-        incentiveLabel: "IPL Special Thali",
-        recommended: false,
-        imageUrl: "https://images.unsplash.com/photo-1589302168068-964664d93dc0?auto=format&fit=crop&w=800&q=80",
-        rating: 4.4,
-        reviewsCount: 4200,
-        address: "Vazir Building, Shalimar Corner, Bhendi Bazaar / Dadar, Mumbai",
-        openingHours: "11:00 AM – 1:30 AM",
-        phone: "+91 22 2345 6630",
-        menuItems: [
-          MenuItem(name: "IPL Match Champions Thali", price: "₹499", description: "Special platter: Chicken Dum Biryani, Seekh Kebab, Butter Naan, Gulab Jamun", isVeg: false, isSpecial: true),
-          MenuItem(name: "Murg Raan Masala", price: "₹680", description: "Tender roasted chicken leg simmered in rich cashew and tomato gravy", isVeg: false),
-          MenuItem(name: "Paneer Tikka Lababdar", price: "₹360", description: "Tandoori paneer simmered in creamy spicy onion tomato gravy", isVeg: true),
-          MenuItem(name: "Falooda Royal", price: "₹190", description: "Rose syrup, sabja seeds, vermicelli topped with rabdi & kulfi ice cream", isVeg: true, isSpecial: true),
-        ],
-      ),
-      Restaurant(
-        id: "R6",
-        name: "Kyani & Co.",
-        cuisine: "Heritage Bakery & Brun Maska",
-        zone: "ZONE_A",
-        capacity: 70,
-        currentOccupancy: 62,
-        availableTables: 2,
-        waitTime: 20,
-        predictedWaitTime: 35,
-        distanceFromVenue: 11,
-        pressure: 72,
-        pressureLevel: PressureLevel.HIGH,
-        source: "SIMULATED",
-        hasIncentive: false,
-        recommended: false,
-        imageUrl: "https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=800&q=80",
-        rating: 4.5,
-        reviewsCount: 3910,
-        address: "JSS Road, Jer Mahal Estate, Opposite Metro Cinema, Marine Lines, Mumbai",
-        openingHours: "7:00 AM – 8:30 PM",
-        phone: "+91 22 2201 1492",
-        menuItems: [
-          MenuItem(name: "Brun Maska & Chai", price: "₹70", description: "Crusty hard bun with generous salted butter paired with hot Irani tea", isVeg: true, isSpecial: true),
-          MenuItem(name: "Akuri on Toast", price: "₹140", description: "Parsi-style creamy scrambled eggs with fresh coriander, onion & green chillies", isVeg: false, isSpecial: true),
-          MenuItem(name: "Chicken Parsi Pattice", price: "₹95", description: "Mashed potato cutlet filled with spiced minced chicken", isVeg: false),
-          MenuItem(name: "Mawa Cake (2 pcs)", price: "₹80", description: "Legendary dense, cardamom-scented caramelized milk tea cakes", isVeg: true, isSpecial: true),
+          MenuItem(name: "Degree Filter Coffee", price: "₹65", description: "Traditional frothed South Indian chicory coffee in stainless steel tumbler", isVeg: true, isSpecial: true),
+          MenuItem(name: "Rava Onion Dosa", price: "₹170", description: "Lacy semolina crepe studded with green chilies, cashews & chopped onions", isVeg: true),
         ],
       ),
     ];
   }
 
   static List<Alert> getAlerts(ScenarioId scenario) {
-    switch (scenario) {
-      case ScenarioId.NORMAL:
-        return const [
-          Alert(
-            id: "A1",
-            severity: AlertSeverity.HIGH,
-            category: AlertCategory.CROWD,
-            title: "Churchgate pressure rising",
-            message: "Churchgate Station is predicted to reach 94% capacity in approximately 25 minutes.",
-            resourceId: "CHURCHGATE",
-            actionLabel: "View Alternatives",
-            actionRoute: "plan",
-            timestamp: "19:08",
-          ),
-          Alert(
-            id: "A2",
-            severity: AlertSeverity.HIGH,
-            category: AlertCategory.CROWD,
-            title: "Taxi zone filling fast",
-            message: "Wankhede taxi zone predicted to reach 91% in 30 minutes. Pre-book or use alternate exit.",
-            resourceId: "TAXI_ZONE",
-            actionLabel: "Route Options",
-            actionRoute: "plan",
-            timestamp: "19:11",
-          ),
-          Alert(
-            id: "A3",
-            severity: AlertSeverity.WATCH,
-            category: AlertCategory.TRANSPORT,
-            title: "Marine Lines approaching capacity",
-            message: "Marine Lines platform becoming congested. Consider Churchgate or CSMT alternatives.",
-            resourceId: "MARINE_LINES",
-            actionLabel: "See Routes",
-            actionRoute: "plan",
-            timestamp: "19:14",
-          ),
-        ];
-
-      case ScenarioId.POST_EVENT_SURGE:
-        return const [
-          Alert(
-            id: "A4",
-            severity: AlertSeverity.CRITICAL,
-            category: AlertCategory.CROWD,
-            title: "Critical congestion — Churchgate Station",
-            message: "Churchgate at 94% capacity. Wankhede exit gates backing up. Immediate redistribution advised.",
-            resourceId: "CHURCHGATE",
-            actionLabel: "Emergency Routes",
-            actionRoute: "plan",
-            timestamp: "22:32",
-          ),
-          Alert(
-            id: "A5",
-            severity: AlertSeverity.CRITICAL,
-            category: AlertCategory.CROWD,
-            title: "Taxi zone at capacity",
-            message: "All pickup positions occupied. Average wait 45 minutes. Use rail or walk to Marine Lines.",
-            resourceId: "TAXI_ZONE",
-            actionLabel: "Rail Options",
-            actionRoute: "plan",
-            timestamp: "22:35",
-          ),
-        ];
-
-      case ScenarioId.TRANSPORT_DISRUPTION:
-        return const [
-          Alert(
-            id: "A7",
-            severity: AlertSeverity.CRITICAL,
-            category: AlertCategory.TRANSPORT,
-            title: "Western Railway signal fault",
-            message: "Churchgate line disrupted. Services suspended for 20-30 minutes. Use CSMT or taxis.",
-            resourceId: "CHURCHGATE",
-            actionLabel: "Alternate Routes",
-            actionRoute: "plan",
-            timestamp: "19:22",
-          ),
-          Alert(
-            id: "A8",
-            severity: AlertSeverity.HIGH,
-            category: AlertCategory.CROWD,
-            title: "Churchgate severely congested",
-            message: "Station at 89% and rising. Disruption compounding crowd pressure.",
-            resourceId: "CHURCHGATE",
-            actionLabel: "View Options",
-            actionRoute: "plan",
-            timestamp: "19:25",
-          ),
-        ];
-
-      case ScenarioId.HEAVY_RAIN:
-        return const [
-          Alert(
-            id: "A9",
-            severity: AlertSeverity.HIGH,
-            category: AlertCategory.WEATHER,
-            title: "Heavy rain — taxi demand spiking",
-            message: "Monsoon conditions. Taxi zone at 87% and predicted to reach 97%. Book early or use rail.",
-            resourceId: "TAXI_ZONE",
-            actionLabel: "Rail Options",
-            actionRoute: "plan",
-            timestamp: "19:05",
-          ),
-          Alert(
-            id: "A10",
-            severity: AlertSeverity.WATCH,
-            category: AlertCategory.WEATHER,
-            title: "Reduced walking advisable",
-            message: "Heavy rain reduces walking viability. Routes with minimum outdoor exposure recommended.",
-            actionLabel: "Plan Journey",
-            actionRoute: "plan",
-            timestamp: "19:07",
-          ),
-        ];
-
-      case ScenarioId.ACCOMMODATION_SATURATION:
-        return const [
-          Alert(
-            id: "A11",
-            severity: AlertSeverity.HIGH,
-            category: AlertCategory.ACCOMMODATION,
-            title: "Zone A & B hotels near full",
-            message: "South Mumbai hotels at 88-91% occupancy. Zone C (Dadar) has 79 usable rooms available.",
-            actionLabel: "Find Stay",
-            actionRoute: "stay",
-            timestamp: "18:45",
-          ),
-        ];
-
-      case ScenarioId.EVENT_DELAY:
-        return const [
-          Alert(
-            id: "A12",
-            severity: AlertSeverity.WATCH,
-            category: AlertCategory.EVENT,
-            title: "Match delayed — 30 minutes",
-            message: "Wankhede Stadium start time moved to 20:00. Recommended arrival time updated.",
-            actionLabel: "Update Plan",
-            actionRoute: "plan",
-            timestamp: "19:00",
-          ),
-        ];
-    }
+    return ScenarioIntelligenceService.getScenarioAlerts(scenario);
   }
 }
